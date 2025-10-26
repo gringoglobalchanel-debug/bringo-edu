@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -97,6 +97,165 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
         ></div>
       </div>
     </div>
+  );
+};
+
+// Componente para Fila de Notas Rápidas
+const FilaNotasRapidas = ({ estudiante, onAgregarNota, calcularPromedioFinal, claseSeleccionada, usuario, actualizarNota }) => {
+  const [notaDiaria, setNotaDiaria] = useState('');
+  const [notaApreciacion, setNotaApreciacion] = useState('');
+  const [notaExamen, setNotaExamen] = useState('');
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+
+  const handleAgregarNota = async (tipo, valor) => {
+    if (valor && parseFloat(valor) >= 0 && parseFloat(valor) <= 5) {
+      // Primero agregar la nota
+      await onAgregarNota(estudiante.id, tipo);
+      
+      // Esperar un momento y luego actualizar el valor
+      setTimeout(async () => {
+        const nuevasNotas = estudiante[tipo] || [];
+        if (nuevasNotas.length > 0) {
+          const ultimaNotaIndex = nuevasNotas.length - 1;
+          await actualizarNota(estudiante.id, tipo, ultimaNotaIndex, 'valor', parseFloat(valor));
+          await actualizarNota(estudiante.id, tipo, ultimaNotaIndex, 'fecha', fecha);
+        }
+      }, 100);
+
+      // Limpiar el campo
+      if (tipo === 'notasDiarias') setNotaDiaria('');
+      if (tipo === 'apreciacion') setNotaApreciacion('');
+      if (tipo === 'examen') setNotaExamen('');
+    }
+  };
+
+  const compartirPorWhatsApp = () => {
+    const formatoNotas = (notas) => {
+      return notas
+        .filter(n => n.valor && parseFloat(n.valor) > 0)
+        .map(n => `📅 ${n.fecha}: ${n.valor}/5.0`)
+        .join('\n') || '📭 Sin notas registradas';
+    };
+
+    const mensaje = `📊 *REPORTE DE NOTAS - ${claseSeleccionada?.nombre}*
+
+*Estudiante:* ${estudiante.nombre}
+*Profesor:* ${usuario?.nombre}
+*Institución:* ${claseSeleccionada?.institucion || 'Bringo Edu'}
+*Fecha de reporte:* ${new Date().toLocaleDateString('es-PA')}
+
+*📝 NOTAS DIARIAS:*
+${formatoNotas(estudiante.notasDiarias)}
+
+*⭐ APRECIACIÓN:*
+${formatoNotas(estudiante.apreciacion)}
+
+*📋 EXAMEN:*
+${formatoNotas(estudiante.examen)}
+
+*🏆 PROMEDIO FINAL:* ${calcularPromedioFinal(estudiante)}/5.0
+
+---
+Generado con Bringo Edu 📚 | Transparente y Confiable`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  };
+
+  return (
+    <tr className="border-b border-gray-200 hover:bg-gray-50">
+      <td className="px-4 py-3 font-semibold">
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
+            {estudiante.nombre.charAt(0).toUpperCase()}
+          </div>
+          <span>{estudiante.nombre}</span>
+        </div>
+      </td>
+      
+      <td className="px-4 py-3">
+        <div className="flex gap-2">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="5"
+            placeholder="0-5"
+            value={notaDiaria}
+            onChange={(e) => setNotaDiaria(e.target.value)}
+            className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-center"
+          />
+          <button
+            onClick={() => handleAgregarNota('notasDiarias', notaDiaria)}
+            className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+          >
+            +
+          </button>
+        </div>
+      </td>
+      
+      <td className="px-4 py-3">
+        <div className="flex gap-2">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="5"
+            placeholder="0-5"
+            value={notaApreciacion}
+            onChange={(e) => setNotaApreciacion(e.target.value)}
+            className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-center"
+          />
+          <button
+            onClick={() => handleAgregarNota('apreciacion', notaApreciacion)}
+            className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition text-sm font-semibold"
+          >
+            +
+          </button>
+        </div>
+      </td>
+      
+      <td className="px-4 py-3">
+        <div className="flex gap-2">
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            max="5"
+            placeholder="0-5"
+            value={notaExamen}
+            onChange={(e) => setNotaExamen(e.target.value)}
+            className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-center"
+          />
+          <button
+            onClick={() => handleAgregarNota('examen', notaExamen)}
+            className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
+          >
+            +
+          </button>
+        </div>
+      </td>
+      
+      <td className="px-4 py-3 text-center">
+        <span className={`text-xl font-bold ${
+          parseFloat(calcularPromedioFinal(estudiante)) >= 4.5 ? 'text-green-600' :
+          parseFloat(calcularPromedioFinal(estudiante)) >= 3.5 ? 'text-blue-600' :
+          parseFloat(calcularPromedioFinal(estudiante)) >= 3.0 ? 'text-yellow-600' : 'text-red-600'
+        }`}>
+          {calcularPromedioFinal(estudiante)}
+        </span>
+      </td>
+      
+      <td className="px-4 py-3 text-center">
+        <button
+          onClick={compartirPorWhatsApp}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-semibold flex items-center gap-2 text-sm"
+        >
+          <Share className="w-4 h-4" />
+          WhatsApp
+        </button>
+      </td>
+    </tr>
   );
 };
 
@@ -291,7 +450,7 @@ const ModalRegistro = ({
                 placeholder="Mínimo 6 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
                 required
                 minLength={6}
               />
@@ -307,7 +466,7 @@ const ModalRegistro = ({
                 placeholder="Repite tu contraseña"
                 value={confirmarPassword}
                 onChange={(e) => setConfirmarPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
                 required
               />
             </div>
@@ -384,6 +543,9 @@ export default function AsistenteProfesor() {
   const [trimestre, setTrimestre] = useState('Primer Trimestre');
   const [planGenerado, setPlanGenerado] = useState(null);
   const [generandoPlan, setGenerandoPlan] = useState(false);
+
+  // NUEVO: Estado para búsqueda
+  const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
 
   // Efecto para manejar el estado de autenticación
   useEffect(() => {
@@ -512,80 +674,77 @@ export default function AsistenteProfesor() {
     setErrorAuth('');
   };
 
-  // ✅ FUNCIÓN ACTUALIZADA: Generar plan trimestral
- // ✅ FUNCIÓN CORREGIDA: Generar plan trimestral con debug
-const generarPlanConOpenAI = async () => {
-  // DEBUG: Verificar los datos antes de enviar
-  console.log('🔍 DEBUG - Datos del formulario:', {
-    nombreProfesor,
-    institucion,
-    gradoPlan,
-    materia,
-    trimestre
-  });
-
-  if (!nombreProfesor.trim() || !institucion.trim() || !gradoPlan.trim() || !materia.trim() || !trimestre.trim()) {
-    alert('Por favor completa todos los campos');
-    return;
-  }
-
-  setGenerandoPlan(true);
-
-  try {
-    const BACKEND_URL = 'https://bringo-edu-backend-2.onrender.com/api/generate-plan';
-    
-    console.log('🚀 Enviando solicitud al backend...', BACKEND_URL);
-
-    const response = await fetch(BACKEND_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        nombreProfesor,
-        institucion,
-        gradoPlan,
-        materia,
-        trimestre
-      })
+  // ✅ FUNCIÓN CORREGIDA: Generar plan trimestral con debug
+  const generarPlanConOpenAI = async () => {
+    console.log('🔍 DEBUG - Datos del formulario:', {
+      nombreProfesor,
+      institucion,
+      gradoPlan,
+      materia,
+      trimestre
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
-      throw new Error(errorData.error || `Error ${response.status} del servidor`);
-    }
-
-    const data = await response.json();
-    
-    // DEBUG CRÍTICO: Ver qué está devolviendo realmente el backend
-    console.log('🎯 RESPUESTA COMPLETA DEL BACKEND:', data);
-    console.log('📚 Contenidos recibidos:', data.contenidos);
-    console.log('💪 Competencias recibidas:', data.competencias);
-    console.log('📖 Metodología recibida:', data.metodologia);
-    console.log('🔑 Tiene generadoPorIA:', data.generadoPorIA);
-    
-    // Verificar si la respuesta tiene contenido real de IA
-    if (!data.contenidos || !Array.isArray(data.contenidos) || data.contenidos.length === 0) {
-      console.warn('⚠️ El backend no devolvió contenidos válidos');
-      alert('El servicio de IA no generó contenido. Intenta nuevamente.');
+    if (!nombreProfesor.trim() || !institucion.trim() || !gradoPlan.trim() || !materia.trim() || !trimestre.trim()) {
+      alert('Por favor completa todos los campos');
       return;
     }
-    
-    console.log('✅ Plan trimestral generado exitosamente!', data);
-    
-    setPlanGenerado({
-      ...data,
-      fecha: data.fecha || new Date().toLocaleDateString('es-PA'),
-      generadoPorIA: true
-    });
 
-  } catch (error) {
-    console.error('❌ Error al generar plan:', error);
-    alert(`Error al generar el plan: ${error.message}`);
-  } finally {
-    setGenerandoPlan(false);
-  }
-};
+    setGenerandoPlan(true);
+
+    try {
+      const BACKEND_URL = 'https://bringo-edu-backend-2.onrender.com/api/generate-plan';
+      
+      console.log('🚀 Enviando solicitud al backend...', BACKEND_URL);
+
+      const response = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nombreProfesor,
+          institucion,
+          gradoPlan,
+          materia,
+          trimestre
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Error desconocido' }));
+        throw new Error(errorData.error || `Error ${response.status} del servidor`);
+      }
+
+      const data = await response.json();
+      
+      console.log('🎯 RESPUESTA COMPLETA DEL BACKEND:', data);
+      console.log('📚 Contenidos recibidos:', data.contenidos);
+      console.log('💪 Competencias recibidas:', data.competencias);
+      console.log('📖 Metodología recibida:', data.metodologia);
+      console.log('🔑 Tiene generadoPorIA:', data.generadoPorIA);
+      
+      if (!data.contenidos || !Array.isArray(data.contenidos) || data.contenidos.length === 0) {
+        console.warn('⚠️ El backend no devolvió contenidos válidos');
+        alert('El servicio de IA no generó contenido. Intenta nuevamente.');
+        return;
+      }
+      
+      console.log('✅ Plan trimestral generado exitosamente!', data);
+      
+      setPlanGenerado({
+        ...data,
+        fecha: data.fecha || new Date().toLocaleDateString('es-PA'),
+        generadoPorIA: true
+      });
+
+    } catch (error) {
+      console.error('❌ Error al generar plan:', error);
+      alert(`Error al generar el plan: ${error.message}`);
+    } finally {
+      setGenerandoPlan(false);
+    }
+  };
+
   // ✅ FUNCIÓN MEJORADA: Descargar plan trimestral
   const descargarPlan = () => {
     if (!planGenerado) return;
@@ -982,6 +1141,38 @@ const generarPlanConOpenAI = async () => {
     }));
   };
 
+  // NUEVA FUNCIÓN: Buscar y redirigir a estudiante
+  const buscarYRedirigirEstudiante = (nombre) => {
+    const estudianteEncontrado = estudiantes.find(e => 
+      e.nombre.toLowerCase().includes(nombre.toLowerCase())
+    );
+    
+    if (estudianteEncontrado) {
+      // Expandir la sección del estudiante
+      setExpandido(prev => ({
+        ...prev,
+        [estudianteEncontrado.id]: true
+      }));
+      
+      // Scroll a la sección del estudiante
+      setTimeout(() => {
+        const elemento = document.getElementById(`estudiante-${estudianteEncontrado.id}`);
+        if (elemento) {
+          elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Resaltar temporalmente
+          elemento.classList.add('bg-yellow-100');
+          setTimeout(() => {
+            elemento.classList.remove('bg-yellow-100');
+          }, 2000);
+        }
+      }, 300);
+      
+      setBusquedaEstudiante('');
+    } else {
+      alert('Estudiante no encontrado');
+    }
+  };
+
   const estudiantesEnRiesgo = estudiantes.filter(e => parseFloat(calcularPromedioFinal(e)) < 3.0 && parseFloat(calcularPromedioFinal(e)) > 0);
 
   const promedioGeneral = () => {
@@ -1014,7 +1205,7 @@ const generarPlanConOpenAI = async () => {
       .slice(-6); // Últimas 6 notas
   };
 
-  // FUNCIONES MEJORADAS DE DESCARGA
+  // FUNCIONES MEJORADAS DE DESCARGA CON FECHAS
   const generarReporteNotasPDF = () => {
     if (!claseSeleccionada) return;
 
@@ -1144,23 +1335,16 @@ const generarPlanConOpenAI = async () => {
     ventana.print();
   };
 
+  // FUNCIÓN MEJORADA: Reporte de asistencia con fechas específicas
   const generarReporteAsistenciaPDF = () => {
     if (!claseSeleccionada) return;
 
-    // Calcular estadísticas de asistencia
-    const totalDias = Object.keys(estudiantes[0]?.asistencia || {}).length;
-    const estadisticasAsistencia = estudiantes.map(estudiante => {
-      const asist = contarAsistencias(estudiante);
-      const totalRegistros = asist.presente + asist.ausente + asist.tardanza;
-      const porcentajeAsistencia = totalRegistros > 0 ? Math.round((asist.presente / totalRegistros) * 100) : 0;
-      
-      return {
-        nombre: estudiante.nombre,
-        ...asist,
-        porcentajeAsistencia,
-        totalRegistros
-      };
-    });
+    // Obtener todas las fechas únicas de asistencia
+    const todasLasFechas = [...new Set(
+      estudiantes.flatMap(estudiante => 
+        Object.keys(estudiante.asistencia || {})
+      )
+    )].sort();
 
     let contenido = `
       <!DOCTYPE html>
@@ -1174,12 +1358,15 @@ const generarPlanConOpenAI = async () => {
           .header h1 { color: #059669; margin: 0; }
           .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
           .stat-card { background: #f0fdf4; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #bbf7d0; }
-          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .table th { background: #059669; color: white; padding: 12px; text-align: left; }
-          .table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
+          .table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+          .table th { background: #059669; color: white; padding: 8px; text-align: center; font-size: 11px; }
+          .table td { padding: 8px; border: 1px solid #e5e7eb; text-align: center; }
           .presente { color: #059669; font-weight: bold; }
           .tardanza { color: #d97706; font-weight: bold; }
           .ausente { color: #dc2626; font-weight: bold; }
+          .resumen-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          .resumen-table th { background: #1e40af; color: white; padding: 12px; text-align: left; }
+          .resumen-table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
           .progress-bar { background: #e5e7eb; border-radius: 10px; height: 10px; margin: 5px 0; }
           .progress-fill { background: #059669; height: 100%; border-radius: 10px; }
           .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px; }
@@ -1187,9 +1374,9 @@ const generarPlanConOpenAI = async () => {
       </head>
       <body>
         <div class="header">
-          <h1>📅 Reporte de Asistencia</h1>
+          <h1>📅 Reporte Detallado de Asistencia</h1>
           <p><strong>Clase:</strong> ${claseSeleccionada.nombre}</p>
-          <p><strong>Período:</strong> ${totalDias} días registrados</p>
+          <p><strong>Período:</strong> ${todasLasFechas.length} días registrados</p>
           <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
         </div>
 
@@ -1197,24 +1384,92 @@ const generarPlanConOpenAI = async () => {
           <div class="stat-card">
             <h3>✅ Presente</h3>
             <p style="font-size: 24px; font-weight: bold; color: #059669;">
-              ${estadisticasAsistencia.reduce((sum, e) => sum + e.presente, 0)}
+              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'presente').length, 0)}
             </p>
           </div>
           <div class="stat-card">
             <h3>⏰ Tardanza</h3>
             <p style="font-size: 24px; font-weight: bold; color: #d97706;">
-              ${estadisticasAsistencia.reduce((sum, e) => sum + e.tardanza, 0)}
+              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'tardanza').length, 0)}
             </p>
           </div>
           <div class="stat-card">
             <h3>❌ Ausente</h3>
             <p style="font-size: 24px; font-weight: bold; color: #dc2626;">
-              ${estadisticasAsistencia.reduce((sum, e) => sum + e.ausente, 0)}
+              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'ausente').length, 0)}
             </p>
           </div>
         </div>
 
-        <table class="table">
+        <h3>📋 Asistencia por Día</h3>
+        <div style="overflow-x: auto;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Estudiante</th>
+                ${todasLasFechas.map(fecha => `
+                  <th>${new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</th>
+                `).join('')}
+                <th>Total P</th>
+                <th>Total T</th>
+                <th>Total A</th>
+                <th>% Asist.</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    estudiantes.forEach(estudiante => {
+      const asistencia = estudiante.asistencia || {};
+      const totalPresente = Object.values(asistencia).filter(v => v === 'presente').length;
+      const totalTardanza = Object.values(asistencia).filter(v => v === 'tardanza').length;
+      const totalAusente = Object.values(asistencia).filter(v => v === 'ausente').length;
+      const totalRegistros = totalPresente + totalTardanza + totalAusente;
+      const porcentajeAsistencia = totalRegistros > 0 ? Math.round((totalPresente / totalRegistros) * 100) : 0;
+
+      contenido += `
+        <tr>
+          <td style="text-align: left; font-weight: bold;">${estudiante.nombre}</td>
+          ${todasLasFechas.map(fecha => {
+            const estado = asistencia[fecha];
+            let icono = '';
+            let clase = '';
+            if (estado === 'presente') {
+              icono = '✅';
+              clase = 'presente';
+            } else if (estado === 'tardanza') {
+              icono = '⏰';
+              clase = 'tardanza';
+            } else if (estado === 'ausente') {
+              icono = '❌';
+              clase = 'ausente';
+            } else {
+              icono = '-';
+            }
+            return `<td class="${clase}">${icono}</td>`;
+          }).join('')}
+          <td class="presente">${totalPresente}</td>
+          <td class="tardanza">${totalTardanza}</td>
+          <td class="ausente">${totalAusente}</td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 5px;">
+              <span>${porcentajeAsistencia}%</span>
+              <div class="progress-bar" style="width: 60px;">
+                <div class="progress-fill" style="width: ${porcentajeAsistencia}%"></div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+    });
+
+    contenido += `
+            </tbody>
+          </table>
+        </div>
+
+        <h3>📊 Resumen por Estudiante</h3>
+        <table class="resumen-table">
           <thead>
             <tr>
               <th>Estudiante</th>
@@ -1228,19 +1483,23 @@ const generarPlanConOpenAI = async () => {
           <tbody>
     `;
 
-    estadisticasAsistencia.forEach(estadistica => {
+    estudiantes.forEach(estudiante => {
+      const asistencia = contarAsistencias(estudiante);
+      const totalRegistros = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+      const porcentajeAsistencia = totalRegistros > 0 ? Math.round((asistencia.presente / totalRegistros) * 100) : 0;
+
       contenido += `
         <tr>
-          <td><strong>${estadistica.nombre}</strong></td>
-          <td class="presente">${estadistica.presente}</td>
-          <td class="tardanza">${estadistica.tardanza}</td>
-          <td class="ausente">${estadistica.ausente}</td>
-          <td>${estadistica.totalRegistros}</td>
+          <td><strong>${estudiante.nombre}</strong></td>
+          <td class="presente">${asistencia.presente}</td>
+          <td class="tardanza">${asistencia.tardanza}</td>
+          <td class="ausente">${asistencia.ausente}</td>
+          <td>${totalRegistros}</td>
           <td>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <span>${estadistica.porcentajeAsistencia}%</span>
+              <span>${porcentajeAsistencia}%</span>
               <div class="progress-bar" style="flex: 1;">
-                <div class="progress-fill" style="width: ${estadistica.porcentajeAsistencia}%"></div>
+                <div class="progress-fill" style="width: ${porcentajeAsistencia}%"></div>
               </div>
             </div>
           </td>
@@ -1882,6 +2141,36 @@ const generarPlanConOpenAI = async () => {
               </div>
             </div>
             
+            {/* NUEVO: BARRA DE BÚSQUEDA */}
+            {estudiantes.length > 0 && (
+              <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl p-4 mb-6">
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      🔍 Buscar Estudiante
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Escribe el nombre del estudiante..."
+                        value={busquedaEstudiante}
+                        onChange={(e) => setBusquedaEstudiante(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
+                        className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                      />
+                      <button
+                        onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
+                        className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2"
+                      >
+                        <Search className="w-5 h-5" />
+                        Buscar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {estudiantesEnRiesgo.length > 0 && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-6">
                 <div className="flex items-start gap-4">
@@ -1900,6 +2189,46 @@ const generarPlanConOpenAI = async () => {
               </div>
             )}
             
+            {/* NUEVO: CUADRÍCULA DE NOTAS RÁPIDAS */}
+            {estudiantes.length > 0 && (
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
+                <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  📊 Registro Rápido de Notas - {new Date().toLocaleDateString('es-PA')}
+                </h3>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-full">
+                    <thead className="bg-purple-600 text-white">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold">Estudiante</th>
+                        <th className="px-4 py-3 text-center font-semibold">Notas Diarias</th>
+                        <th className="px-4 py-3 text-center font-semibold">Apreciación</th>
+                        <th className="px-4 py-3 text-center font-semibold">Examen</th>
+                        <th className="px-4 py-3 text-center font-semibold">Promedio</th>
+                        <th className="px-4 py-3 text-center font-semibold">Compartir</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {estudiantes.map((estudiante) => (
+                        <FilaNotasRapidas
+                          key={estudiante.id}
+                          estudiante={estudiante}
+                          onAgregarNota={agregarNota}
+                          calcularPromedioFinal={calcularPromedioFinal}
+                          claseSeleccionada={claseSeleccionada}
+                          usuario={usuario}
+                          actualizarNota={actualizarNota}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-sm text-gray-600 mt-3 text-center">
+                  💡 Ingresa las notas (0-5) y presiona "+" para agregar. Las notas se guardan automáticamente.
+                </p>
+              </div>
+            )}
+            
             {estudiantes.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-lg">No hay estudiantes en esta clase</p>
@@ -1908,7 +2237,7 @@ const generarPlanConOpenAI = async () => {
             
             <div className="space-y-6">
               {estudiantes.map(estudiante => (
-                <div key={estudiante.id} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                <div key={estudiante.id} id={`estudiante-${estudiante.id}`} className="border-2 border-gray-200 rounded-xl overflow-hidden transition-all duration-300">
                   <div
                     onClick={() => toggleExpansion(estudiante.id)}
                     className="bg-gradient-to-r from-purple-100 to-blue-100 p-6 cursor-pointer hover:from-purple-200 hover:to-blue-200 transition"
