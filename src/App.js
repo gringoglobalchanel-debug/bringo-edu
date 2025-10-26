@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -19,7 +19,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Componente para gráfico de distribución - CORREGIDO
+// Componente para gráfico de distribución
 const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   const calcularDistribucion = () => {
     const distribucion = {
@@ -100,7 +100,7 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   );
 };
 
-// Componente para Fila de Notas Rápidas
+// Componente para Fila de Notas Rápidas - CORREGIDO
 const FilaNotasRapidas = ({ estudiante, onAgregarNota, calcularPromedioFinal, claseSeleccionada, usuario, actualizarNota }) => {
   const [notaDiaria, setNotaDiaria] = useState('');
   const [notaApreciacion, setNotaApreciacion] = useState('');
@@ -109,23 +109,20 @@ const FilaNotasRapidas = ({ estudiante, onAgregarNota, calcularPromedioFinal, cl
 
   const handleAgregarNota = async (tipo, valor) => {
     if (valor && parseFloat(valor) >= 0 && parseFloat(valor) <= 5) {
-      // Primero agregar la nota
-      await onAgregarNota(estudiante.id, tipo);
-      
-      // Esperar un momento y luego actualizar el valor
-      setTimeout(async () => {
-        const nuevasNotas = estudiante[tipo] || [];
-        if (nuevasNotas.length > 0) {
-          const ultimaNotaIndex = nuevasNotas.length - 1;
-          await actualizarNota(estudiante.id, tipo, ultimaNotaIndex, 'valor', parseFloat(valor));
-          await actualizarNota(estudiante.id, tipo, ultimaNotaIndex, 'fecha', fecha);
-        }
-      }, 100);
+      try {
+        await onAgregarNota(estudiante.id, tipo, parseFloat(valor), fecha);
+        
+        // Limpiar el campo
+        if (tipo === 'notasDiarias') setNotaDiaria('');
+        if (tipo === 'apreciacion') setNotaApreciacion('');
+        if (tipo === 'examen') setNotaExamen('');
 
-      // Limpiar el campo
-      if (tipo === 'notasDiarias') setNotaDiaria('');
-      if (tipo === 'apreciacion') setNotaApreciacion('');
-      if (tipo === 'examen') setNotaExamen('');
+      } catch (error) {
+        console.error('Error agregando nota:', error);
+        alert('Error al agregar la nota');
+      }
+    } else {
+      alert('Por favor ingresa una nota válida entre 0 y 5');
     }
   };
 
@@ -259,7 +256,7 @@ Generado con Bringo Edu 📚 | Transparente y Confiable`;
   );
 };
 
-// Componentes de Modal fuera del componente principal para evitar re-renders
+// Componente de Modal Login MEJORADO con toggle de contraseña
 const ModalLogin = ({ 
   mostrarLogin, 
   setMostrarLogin, 
@@ -273,6 +270,8 @@ const ModalLogin = ({
   limpiarFormulariosAuth,
   setMostrarRegistro 
 }) => {
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+
   if (!mostrarLogin) return null;
 
   const handleSubmit = (e) => {
@@ -317,14 +316,23 @@ const ModalLogin = ({
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                 <span className="text-purple-600">🔒</span> Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={mostrarPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all pr-12"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarPassword(!mostrarPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+                >
+                  {mostrarPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
           
@@ -370,6 +378,7 @@ const ModalLogin = ({
   );
 };
 
+// Componente de Modal Registro MEJORADO con toggle de contraseña
 const ModalRegistro = ({ 
   mostrarRegistro, 
   setMostrarRegistro, 
@@ -387,6 +396,9 @@ const ModalRegistro = ({
   limpiarFormulariosAuth,
   setMostrarLogin 
 }) => {
+  const [mostrarPassword, setMostrarPassword] = useState(false);
+  const [mostrarConfirmarPassword, setMostrarConfirmarPassword] = useState(false);
+
   if (!mostrarRegistro) return null;
 
   const handleSubmit = (e) => {
@@ -445,15 +457,24 @@ const ModalRegistro = ({
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                 <span className="text-green-600">🔒</span> Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                required
-                minLength={6}
-              />
+              <div className="relative">
+                <input
+                  type={mostrarPassword ? "text" : "password"}
+                  placeholder="Mínimo 6 caracteres"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all pr-12"
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarPassword(!mostrarPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+                >
+                  {mostrarPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mt-1 ml-1">Usa letras, números y símbolos</p>
             </div>
             
@@ -461,14 +482,23 @@ const ModalRegistro = ({
               <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-2">
                 <span className="text-green-600">✅</span> Confirmar Contraseña
               </label>
-              <input
-                type="password"
-                placeholder="Repite tu contraseña"
-                value={confirmarPassword}
-                onChange={(e) => setConfirmarPassword(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={mostrarConfirmarPassword ? "text" : "password"}
+                  placeholder="Repite tu contraseña"
+                  value={confirmarPassword}
+                  onChange={(e) => setConfirmarPassword(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all pr-12"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarConfirmarPassword(!mostrarConfirmarPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition"
+                >
+                  {mostrarConfirmarPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
           
@@ -514,6 +544,56 @@ const ModalRegistro = ({
   );
 };
 
+// Componente de Barra de Búsqueda de ESTUDIANTES para Home
+const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante }) => {
+  const buscarYRedirigirEstudiante = (nombre) => {
+    if (!nombre.trim()) return;
+    
+    const estudianteEncontrado = estudiantes.find(e => 
+      e.nombre.toLowerCase().includes(nombre.toLowerCase())
+    );
+    
+    if (estudianteEncontrado) {
+      onBuscarEstudiante(estudianteEncontrado);
+      setBusquedaEstudiante('');
+    } else {
+      alert('Estudiante no encontrado');
+    }
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl p-4 mb-6">
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="flex-1 w-full">
+          <label className="block text-sm font-bold text-gray-700 mb-2">
+            🔍 Buscar Estudiante
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Escribe el nombre del estudiante..."
+              value={busquedaEstudiante}
+              onChange={(e) => setBusquedaEstudiante(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
+              className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm md:text-base"
+            />
+            <button
+              onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
+              className="bg-purple-600 text-white px-4 md:px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
+            >
+              <Search className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Buscar</span>
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            💡 Encuentra rápidamente estudiantes por nombre
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function AsistenteProfesor() {
   const [usuario, setUsuario] = useState(null);
   const [mostrarLogin, setMostrarLogin] = useState(false);
@@ -544,7 +624,7 @@ export default function AsistenteProfesor() {
   const [planGenerado, setPlanGenerado] = useState(null);
   const [generandoPlan, setGenerandoPlan] = useState(false);
 
-  // NUEVO: Estado para búsqueda
+  // Estado para búsqueda de estudiantes - MANTENIDO
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
 
   // Efecto para manejar el estado de autenticación
@@ -674,16 +754,8 @@ export default function AsistenteProfesor() {
     setErrorAuth('');
   };
 
-  // ✅ FUNCIÓN CORREGIDA: Generar plan trimestral con debug
+  // FUNCIÓN MEJORADA: Generar plan trimestral con NUEVO campo
   const generarPlanConOpenAI = async () => {
-    console.log('🔍 DEBUG - Datos del formulario:', {
-      nombreProfesor,
-      institucion,
-      gradoPlan,
-      materia,
-      trimestre
-    });
-
     if (!nombreProfesor.trim() || !institucion.trim() || !gradoPlan.trim() || !materia.trim() || !trimestre.trim()) {
       alert('Por favor completa todos los campos');
       return;
@@ -693,8 +765,6 @@ export default function AsistenteProfesor() {
 
     try {
       const BACKEND_URL = 'https://bringo-edu-backend-2.onrender.com/api/generate-plan';
-      
-      console.log('🚀 Enviando solicitud al backend...', BACKEND_URL);
 
       const response = await fetch(BACKEND_URL, {
         method: 'POST',
@@ -706,7 +776,8 @@ export default function AsistenteProfesor() {
           institucion,
           gradoPlan,
           materia,
-          trimestre
+          trimestre,
+          incluirDesarrolloClases: true
         })
       });
 
@@ -717,19 +788,10 @@ export default function AsistenteProfesor() {
 
       const data = await response.json();
       
-      console.log('🎯 RESPUESTA COMPLETA DEL BACKEND:', data);
-      console.log('📚 Contenidos recibidos:', data.contenidos);
-      console.log('💪 Competencias recibidas:', data.competencias);
-      console.log('📖 Metodología recibida:', data.metodologia);
-      console.log('🔑 Tiene generadoPorIA:', data.generadoPorIA);
-      
       if (!data.contenidos || !Array.isArray(data.contenidos) || data.contenidos.length === 0) {
-        console.warn('⚠️ El backend no devolvió contenidos válidos');
         alert('El servicio de IA no generó contenido. Intenta nuevamente.');
         return;
       }
-      
-      console.log('✅ Plan trimestral generado exitosamente!', data);
       
       setPlanGenerado({
         ...data,
@@ -745,7 +807,7 @@ export default function AsistenteProfesor() {
     }
   };
 
-  // ✅ FUNCIÓN MEJORADA: Descargar plan trimestral
+  // FUNCIÓN MEJORADA: Descargar plan trimestral con NUEVO campo
   const descargarPlan = () => {
     if (!planGenerado) return;
 
@@ -770,6 +832,46 @@ export default function AsistenteProfesor() {
         contenido += `${i + 1}. ${cont}\n`;
       });
       contenido += `\n`;
+    }
+
+    // NUEVO: Sección de Desarrollo del Contenido para Clases
+    if (planGenerado.desarrolloClases && Object.keys(planGenerado.desarrolloClases).length > 0) {
+      contenido += `DESARROLLO DEL CONTENIDO PARA CLASES\n`;
+      contenido += `-`.repeat(80) + `\n`;
+      Object.entries(planGenerado.desarrolloClases).forEach(([contenidoKey, desarrollo]) => {
+        contenido += `\n📝 ${contenidoKey}:\n`;
+        contenido += `Duración: ${desarrollo.duracion || '3 sesiones de 45 minutos'}\n\n`;
+        
+        if (desarrollo.objetivos && desarrollo.objetivos.length > 0) {
+          contenido += `Objetivos de Aprendizaje:\n`;
+          desarrollo.objetivos.forEach(objetivo => {
+            contenido += `- ${objetivo}\n`;
+          });
+          contenido += `\n`;
+        }
+
+        if (desarrollo.materiales && desarrollo.materiales.length > 0) {
+          contenido += `Materiales necesarios:\n`;
+          desarrollo.materiales.forEach(material => {
+            contenido += `- ${material}\n`;
+          });
+          contenido += `\n`;
+        }
+
+        if (desarrollo.fases && desarrollo.fases.length > 0) {
+          contenido += `Fases de la actividad:\n`;
+          desarrollo.fases.forEach((fase, index) => {
+            contenido += `\nSESIÓN ${index + 1} - ${fase.titulo || 'Desarrollo'}\n`;
+            if (fase.actividades) {
+              fase.actividades.forEach(actividad => {
+                contenido += `${actividad.tiempo}: ${actividad.descripcion}\n`;
+              });
+            }
+          });
+          contenido += `\n`;
+        }
+        contenido += `-`.repeat(40) + `\n`;
+      });
     }
 
     if (planGenerado.competencias && planGenerado.competencias.length > 0) {
@@ -842,14 +944,9 @@ export default function AsistenteProfesor() {
     document.body.removeChild(elemento);
   };
 
-  // FUNCIÓN MEJORADA CON DEBUG PARA CREAR CLASES
+  // FUNCIÓN MEJORADA: Agregar clase
   const agregarClase = async () => {
-    console.log('🔍 DEBUG - Iniciando agregarClase');
-    console.log('Usuario:', usuario);
-    console.log('Usuario UID:', usuario?.uid);
-    
     if (!usuario) {
-      console.log('❌ Usuario no autenticado');
       alert('Debes iniciar sesión para crear clases');
       setMostrarLogin(true);
       return;
@@ -861,8 +958,6 @@ export default function AsistenteProfesor() {
     }
     
     try {
-      console.log('🔄 Intentando conectar con Firestore...');
-      
       const nuevaClase = {
         nombre: `${nombreClase} ${grado}${seccion}`,
         grado,
@@ -873,11 +968,7 @@ export default function AsistenteProfesor() {
         fechaCreacion: new Date().toISOString()
       };
       
-      console.log('📦 Datos a guardar:', nuevaClase);
-      
       const docRef = await addDoc(collection(db, 'clases'), nuevaClase);
-      console.log('✅ Clase creada con ID:', docRef.id);
-      
       setClases([...clases, { id: docRef.id, ...nuevaClase }]);
       setNombreClase('');
       setGrado('');
@@ -885,7 +976,6 @@ export default function AsistenteProfesor() {
       
     } catch (error) {
       console.error('❌ Error agregando clase:', error);
-      console.error('Detalles del error:', error.message, error.code);
       alert(`Error al crear la clase: ${error.message}`);
     }
   };
@@ -918,6 +1008,7 @@ export default function AsistenteProfesor() {
     setView('clase');
   };
 
+  // FUNCIÓN MEJORADA: Agregar estudiante
   const agregarEstudiante = async () => {
     if (!nombreEstudiante.trim()) {
       alert('Ingresa el nombre del estudiante');
@@ -989,13 +1080,18 @@ export default function AsistenteProfesor() {
     }
   };
 
-  const agregarNota = async (estudianteId, seccion) => {
+  // FUNCIÓN CORREGIDA: Agregar nota - AHORA FUNCIONA CORRECTAMENTE
+  const agregarNota = async (estudianteId, seccion, valor = '', fecha = new Date().toISOString().split('T')[0]) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
+          const nuevaNota = {
+            valor: valor ? parseFloat(valor) : '',
+            fecha: fecha
+          };
           return {
             ...e,
-            [seccion]: [...e[seccion], { valor: '', fecha: new Date().toISOString().split('T')[0] }]
+            [seccion]: [...e[seccion], nuevaNota]
           };
         }
         return e;
@@ -1016,6 +1112,7 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
     } catch (error) {
       console.error('Error agregando nota:', error);
+      alert('Error al agregar nota');
     }
   };
 
@@ -1141,36 +1238,33 @@ export default function AsistenteProfesor() {
     }));
   };
 
-  // NUEVA FUNCIÓN: Buscar y redirigir a estudiante
-  const buscarYRedirigirEstudiante = (nombre) => {
-    const estudianteEncontrado = estudiantes.find(e => 
-      e.nombre.toLowerCase().includes(nombre.toLowerCase())
-    );
-    
-    if (estudianteEncontrado) {
-      // Expandir la sección del estudiante
-      setExpandido(prev => ({
-        ...prev,
-        [estudianteEncontrado.id]: true
-      }));
-      
-      // Scroll a la sección del estudiante
-      setTimeout(() => {
-        const elemento = document.getElementById(`estudiante-${estudianteEncontrado.id}`);
-        if (elemento) {
-          elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Resaltar temporalmente
-          elemento.classList.add('bg-yellow-100');
-          setTimeout(() => {
-            elemento.classList.remove('bg-yellow-100');
-          }, 2000);
-        }
-      }, 300);
-      
-      setBusquedaEstudiante('');
-    } else {
-      alert('Estudiante no encontrado');
+  // FUNCIÓN CORREGIDA: Buscar y redirigir estudiante - AHORA EN HOME
+  const buscarYRedirigirEstudiante = (estudiante) => {
+    // Si estamos en home, vamos a notas
+    if (view === 'home') {
+      setView('notas');
     }
+    
+    // Expandir la sección del estudiante
+    setExpandido(prev => ({
+      ...prev,
+      [estudiante.id]: true
+    }));
+    
+    // Scroll a la sección del estudiante
+    setTimeout(() => {
+      const elemento = document.getElementById(`estudiante-${estudiante.id}`);
+      if (elemento) {
+        elemento.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Resaltar temporalmente
+        elemento.classList.add('bg-yellow-100');
+        setTimeout(() => {
+          elemento.classList.remove('bg-yellow-100');
+        }, 2000);
+      }
+    }, 500);
+    
+    setBusquedaEstudiante('');
   };
 
   const estudiantesEnRiesgo = estudiantes.filter(e => parseFloat(calcularPromedioFinal(e)) < 3.0 && parseFloat(calcularPromedioFinal(e)) > 0);
@@ -1191,505 +1285,6 @@ export default function AsistenteProfesor() {
       .filter(e => e.promedio > 0)
       .sort((a, b) => b.promedio - a.promedio)
       .slice(0, 5); // Top 5
-  };
-
-  const obtenerEvolucionNotas = (estudiante) => {
-    const todasLasNotas = [
-      ...estudiante.notasDiarias,
-      ...estudiante.apreciacion, 
-      ...estudiante.examen
-    ].filter(nota => nota.valor && parseFloat(nota.valor) > 0);
-    
-    return todasLasNotas
-      .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-      .slice(-6); // Últimas 6 notas
-  };
-
-  // FUNCIONES MEJORADAS DE DESCARGA CON FECHAS
-  const generarReporteNotasPDF = () => {
-    if (!claseSeleccionada) return;
-
-    let contenido = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Reporte de Notas - ${claseSeleccionada.nombre}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; border-bottom: 3px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
-          .header h1 { color: #4f46e5; margin: 0; }
-          .header p { color: #666; margin: 5px 0; }
-          .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
-          .stat-card { background: #f8fafc; padding: 15px; border-radius: 8px; border-left: 4px solid #4f46e5; }
-          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .table th { background: #4f46e5; color: white; padding: 12px; text-align: left; }
-          .table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-          .table tr:nth-child(even) { background: #f9fafb; }
-          .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-          .badge-excelente { background: #dcfce7; color: #166534; }
-          .badge-bueno { background: #dbeafe; color: #1e40af; }
-          .badge-regular { background: #fef3c7; color: #92400e; }
-          .badge-riesgo { background: #fee2e2; color: #991b1b; }
-          .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>📊 Reporte de Notas</h1>
-          <p><strong>Clase:</strong> ${claseSeleccionada.nombre}</p>
-          <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
-        </div>
-
-        <div class="stats">
-          <div class="stat-card">
-            <h3>📈 Promedio General</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #4f46e5; margin: 10px 0;">${promedioGeneral()}/5.0</p>
-          </div>
-          <div class="stat-card">
-            <h3>👥 Total Estudiantes</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #059669; margin: 10px 0;">${estudiantes.length}</p>
-          </div>
-          <div class="stat-card">
-            <h3>⚠️ En Riesgo</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #dc2626; margin: 10px 0;">${estudiantesEnRiesgo.length}</p>
-          </div>
-          <div class="stat-card">
-            <h3>📅 Período</h3>
-            <p style="font-size: 18px; font-weight: bold; color: #7c3aed; margin: 10px 0;">${new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}</p>
-          </div>
-        </div>
-
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Estudiante</th>
-              <th>Notas Diarias</th>
-              <th>Apreciación</th>
-              <th>Examen</th>
-              <th>Promedio Final</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    estudiantes.forEach(estudiante => {
-      const promedio = parseFloat(calcularPromedioFinal(estudiante));
-      let estadoClass = '';
-      let estadoText = '';
-      
-      if (promedio >= 4.5) {
-        estadoClass = 'badge-excelente';
-        estadoText = 'Excelente';
-      } else if (promedio >= 3.5) {
-        estadoClass = 'badge-bueno';
-        estadoText = 'Bueno';
-      } else if (promedio >= 3.0) {
-        estadoClass = 'badge-regular';
-        estadoText = 'Regular';
-      } else if (promedio > 0) {
-        estadoClass = 'badge-riesgo';
-        estadoText = 'En Riesgo';
-      } else {
-        estadoClass = 'badge-riesgo';
-        estadoText = 'Sin Notas';
-      }
-
-      contenido += `
-        <tr>
-          <td><strong>${estudiante.nombre}</strong></td>
-          <td>${calcularTotalSeccion(estudiante.notasDiarias)}</td>
-          <td>${calcularTotalSeccion(estudiante.apreciacion)}</td>
-          <td>${calcularTotalSeccion(estudiante.examen)}</td>
-          <td><strong>${calcularPromedioFinal(estudiante)}</strong></td>
-          <td><span class="badge ${estadoClass}">${estadoText}</span></td>
-        </tr>
-      `;
-    });
-
-    contenido += `
-          </tbody>
-        </table>
-
-        ${estudiantesEnRiesgo.length > 0 ? `
-        <div style="background: #fef2f2; padding: 20px; border-radius: 8px; border-left: 4px solid #dc2626; margin: 20px 0;">
-          <h3 style="color: #dc2626; margin-top: 0;">⚠️ Estudiantes que Requieren Atención</h3>
-          <ul>
-            ${estudiantesEnRiesgo.map(e => `<li><strong>${e.nombre}</strong> - Promedio: ${calcularPromedioFinal(e)}/5.0</li>`).join('')}
-          </ul>
-        </div>
-        ` : ''}
-
-        <div class="footer">
-          <p>Generado con Bringo Edu - Asistente Inteligente para Profesores</p>
-          <p>${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const ventana = window.open('', '_blank');
-    ventana.document.write(contenido);
-    ventana.document.close();
-    ventana.print();
-  };
-
-  // FUNCIÓN MEJORADA: Reporte de asistencia con fechas específicas
-  const generarReporteAsistenciaPDF = () => {
-    if (!claseSeleccionada) return;
-
-    // Obtener todas las fechas únicas de asistencia
-    const todasLasFechas = [...new Set(
-      estudiantes.flatMap(estudiante => 
-        Object.keys(estudiante.asistencia || {})
-      )
-    )].sort();
-
-    let contenido = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Reporte de Asistencia - ${claseSeleccionada.nombre}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; border-bottom: 3px solid #059669; padding-bottom: 20px; margin-bottom: 30px; }
-          .header h1 { color: #059669; margin: 0; }
-          .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px; }
-          .stat-card { background: #f0fdf4; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #bbf7d0; }
-          .table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
-          .table th { background: #059669; color: white; padding: 8px; text-align: center; font-size: 11px; }
-          .table td { padding: 8px; border: 1px solid #e5e7eb; text-align: center; }
-          .presente { color: #059669; font-weight: bold; }
-          .tardanza { color: #d97706; font-weight: bold; }
-          .ausente { color: #dc2626; font-weight: bold; }
-          .resumen-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .resumen-table th { background: #1e40af; color: white; padding: 12px; text-align: left; }
-          .resumen-table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-          .progress-bar { background: #e5e7eb; border-radius: 10px; height: 10px; margin: 5px 0; }
-          .progress-fill { background: #059669; height: 100%; border-radius: 10px; }
-          .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>📅 Reporte Detallado de Asistencia</h1>
-          <p><strong>Clase:</strong> ${claseSeleccionada.nombre}</p>
-          <p><strong>Período:</strong> ${todasLasFechas.length} días registrados</p>
-          <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
-        </div>
-
-        <div class="stats">
-          <div class="stat-card">
-            <h3>✅ Presente</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #059669;">
-              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'presente').length, 0)}
-            </p>
-          </div>
-          <div class="stat-card">
-            <h3>⏰ Tardanza</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #d97706;">
-              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'tardanza').length, 0)}
-            </p>
-          </div>
-          <div class="stat-card">
-            <h3>❌ Ausente</h3>
-            <p style="font-size: 24px; font-weight: bold; color: #dc2626;">
-              ${estudiantes.reduce((sum, e) => sum + Object.values(e.asistencia || {}).filter(v => v === 'ausente').length, 0)}
-            </p>
-          </div>
-        </div>
-
-        <h3>📋 Asistencia por Día</h3>
-        <div style="overflow-x: auto;">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Estudiante</th>
-                ${todasLasFechas.map(fecha => `
-                  <th>${new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</th>
-                `).join('')}
-                <th>Total P</th>
-                <th>Total T</th>
-                <th>Total A</th>
-                <th>% Asist.</th>
-              </tr>
-            </thead>
-            <tbody>
-    `;
-
-    estudiantes.forEach(estudiante => {
-      const asistencia = estudiante.asistencia || {};
-      const totalPresente = Object.values(asistencia).filter(v => v === 'presente').length;
-      const totalTardanza = Object.values(asistencia).filter(v => v === 'tardanza').length;
-      const totalAusente = Object.values(asistencia).filter(v => v === 'ausente').length;
-      const totalRegistros = totalPresente + totalTardanza + totalAusente;
-      const porcentajeAsistencia = totalRegistros > 0 ? Math.round((totalPresente / totalRegistros) * 100) : 0;
-
-      contenido += `
-        <tr>
-          <td style="text-align: left; font-weight: bold;">${estudiante.nombre}</td>
-          ${todasLasFechas.map(fecha => {
-            const estado = asistencia[fecha];
-            let icono = '';
-            let clase = '';
-            if (estado === 'presente') {
-              icono = '✅';
-              clase = 'presente';
-            } else if (estado === 'tardanza') {
-              icono = '⏰';
-              clase = 'tardanza';
-            } else if (estado === 'ausente') {
-              icono = '❌';
-              clase = 'ausente';
-            } else {
-              icono = '-';
-            }
-            return `<td class="${clase}">${icono}</td>`;
-          }).join('')}
-          <td class="presente">${totalPresente}</td>
-          <td class="tardanza">${totalTardanza}</td>
-          <td class="ausente">${totalAusente}</td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 5px;">
-              <span>${porcentajeAsistencia}%</span>
-              <div class="progress-bar" style="width: 60px;">
-                <div class="progress-fill" style="width: ${porcentajeAsistencia}%"></div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      `;
-    });
-
-    contenido += `
-            </tbody>
-          </table>
-        </div>
-
-        <h3>📊 Resumen por Estudiante</h3>
-        <table class="resumen-table">
-          <thead>
-            <tr>
-              <th>Estudiante</th>
-              <th>Presente</th>
-              <th>Tardanza</th>
-              <th>Ausente</th>
-              <th>Total Registros</th>
-              <th>% Asistencia</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    estudiantes.forEach(estudiante => {
-      const asistencia = contarAsistencias(estudiante);
-      const totalRegistros = asistencia.presente + asistencia.tardanza + asistencia.ausente;
-      const porcentajeAsistencia = totalRegistros > 0 ? Math.round((asistencia.presente / totalRegistros) * 100) : 0;
-
-      contenido += `
-        <tr>
-          <td><strong>${estudiante.nombre}</strong></td>
-          <td class="presente">${asistencia.presente}</td>
-          <td class="tardanza">${asistencia.tardanza}</td>
-          <td class="ausente">${asistencia.ausente}</td>
-          <td>${totalRegistros}</td>
-          <td>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span>${porcentajeAsistencia}%</span>
-              <div class="progress-bar" style="flex: 1;">
-                <div class="progress-fill" style="width: ${porcentajeAsistencia}%"></div>
-              </div>
-            </div>
-          </td>
-        </tr>
-      `;
-    });
-
-    contenido += `
-          </tbody>
-        </table>
-
-        <div class="footer">
-          <p>Generado con Bringo Edu - Asistente Inteligente para Profesores</p>
-          <p>${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const ventana = window.open('', '_blank');
-    ventana.document.write(contenido);
-    ventana.document.close();
-    ventana.print();
-  };
-
-  const generarReporteProgresoPDF = () => {
-    if (!claseSeleccionada) return;
-
-    const distribucion = {
-      excelente: 0, bueno: 0, regular: 0, riesgo: 0
-    };
-
-    estudiantes.forEach(estudiante => {
-      const promedio = parseFloat(calcularPromedioFinal(estudiante));
-      if (promedio >= 4.5) distribucion.excelente++;
-      else if (promedio >= 3.5) distribucion.bueno++;
-      else if (promedio >= 3.0) distribucion.regular++;
-      else if (promedio > 0) distribucion.riesgo++;
-    });
-
-    const topEstudiantes = obtenerRankingEstudiantes();
-
-    let contenido = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Dashboard de Progreso - ${claseSeleccionada.nombre}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
-          .header { text-align: center; border-bottom: 3px solid #7c3aed; padding-bottom: 20px; margin-bottom: 30px; }
-          .header h1 { color: #7c3aed; margin: 0; }
-          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
-          .stat-card { padding: 20px; border-radius: 8px; color: white; text-align: center; }
-          .stat-card h3 { margin: 0 0 10px 0; font-size: 14px; opacity: 0.9; }
-          .stat-card p { margin: 0; font-size: 24px; font-weight: bold; }
-          .distribution { background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }
-          .distribution-item { display: flex; justify-content: between; align-items: center; margin: 10px 0; }
-          .distribution-bar { flex: 1; background: #e5e7eb; border-radius: 10px; height: 12px; margin: 0 15px; overflow: hidden; }
-          .distribution-fill { height: 100%; border-radius: 10px; }
-          .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          .table th { background: #7c3aed; color: white; padding: 12px; text-align: left; }
-          .table td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-          .ranking-badge { display: inline-block; width: 24px; height: 24px; border-radius: 50%; color: white; text-align: center; line-height: 24px; font-weight: bold; margin-right: 10px; }
-          .footer { text-align: center; margin-top: 40px; color: #6b7280; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>📈 Dashboard de Progreso</h1>
-          <p><strong>Clase:</strong> ${claseSeleccionada.nombre}</p>
-          <p><strong>Fecha de generación:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
-        </div>
-
-        <div class="stats-grid">
-          <div class="stat-card" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
-            <h3>📊 Promedio General</h3>
-            <p>${promedioGeneral()}/5.0</p>
-          </div>
-          <div class="stat-card" style="background: linear-gradient(135deg, #10b981, #047857);">
-            <h3>👥 Total Estudiantes</h3>
-            <p>${estudiantes.length}</p>
-          </div>
-          <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
-            <h3>⚠️ En Riesgo</h3>
-            <p>${estudiantesEnRiesgo.length}</p>
-          </div>
-          <div class="stat-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
-            <h3>🏆 Mejor Promedio</h3>
-            <p>${topEstudiantes[0] ? topEstudiantes[0].promedio.toFixed(1) : 0}/5.0</p>
-          </div>
-        </div>
-
-        <div class="distribution">
-          <h3 style="margin-top: 0;">Distribución de Rendimiento</h3>
-          <div class="distribution-item">
-            <span style="color: #059669; font-weight: bold;">Excelente (4.5-5.0)</span>
-            <div class="distribution-bar">
-              <div class="distribution-fill" style="width: ${(distribucion.excelente/estudiantes.length)*100}%; background: #059669;"></div>
-            </div>
-            <span>${distribucion.excelente} (${Math.round((distribucion.excelente/estudiantes.length)*100)}%)</span>
-          </div>
-          <div class="distribution-item">
-            <span style="color: #3b82f6; font-weight: bold;">Bueno (3.5-4.4)</span>
-            <div class="distribution-bar">
-              <div class="distribution-fill" style="width: ${(distribucion.bueno/estudiantes.length)*100}%; background: #3b82f6;"></div>
-            </div>
-            <span>${distribucion.bueno} (${Math.round((distribucion.bueno/estudiantes.length)*100)}%)</span>
-          </div>
-          <div class="distribution-item">
-            <span style="color: #f59e0b; font-weight: bold;">Regular (3.0-3.4)</span>
-            <div class="distribution-bar">
-              <div class="distribution-fill" style="width: ${(distribucion.regular/estudiantes.length)*100}%; background: #f59e0b;"></div>
-            </div>
-            <span>${distribucion.regular} (${Math.round((distribucion.regular/estudiantes.length)*100)}%)</span>
-          </div>
-          <div class="distribution-item">
-            <span style="color: #dc2626; font-weight: bold;">En Riesgo (0-2.9)</span>
-            <div class="distribution-bar">
-              <div class="distribution-fill" style="width: ${(distribucion.riesgo/estudiantes.length)*100}%; background: #dc2626;"></div>
-            </div>
-            <span>${distribucion.riesgo} (${Math.round((distribucion.riesgo/estudiantes.length)*100)}%)</span>
-          </div>
-        </div>
-
-        <h3>🏆 Ranking de Estudiantes</h3>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Posición</th>
-              <th>Estudiante</th>
-              <th>Promedio</th>
-              <th>Total Notas</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    topEstudiantes.forEach((estudiante, index) => {
-      const totalNotas = estudiante.notasDiarias.length + estudiante.apreciacion.length + estudiante.examen.length;
-      const badgeColor = index === 0 ? '#f59e0b' : index === 1 ? '#6b7280' : index === 2 ? '#d97706' : '#8b5cf6';
-      
-      contenido += `
-        <tr>
-          <td>
-            <span class="ranking-badge" style="background: ${badgeColor};">${index + 1}</span>
-          </td>
-          <td><strong>${estudiante.nombre}</strong></td>
-          <td><strong style="color: ${badgeColor};">${estudiante.promedio.toFixed(1)}/5.0</strong></td>
-          <td>${totalNotas} notas</td>
-        </tr>
-      `;
-    });
-
-    contenido += `
-          </tbody>
-        </table>
-
-        ${estudiantesEnRiesgo.length > 0 ? `
-        <div style="background: #fef2f2; padding: 20px; border-radius: 8px; border-left: 4px solid #dc2626; margin: 20px 0;">
-          <h3 style="color: #dc2626; margin-top: 0;">📋 Estudiantes que Requieren Atención Especial</h3>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-            ${estudiantesEnRiesgo.map(estudiante => {
-              const asistencia = contarAsistencias(estudiante);
-              return `
-                <div style="background: white; padding: 15px; border-radius: 6px; border: 1px solid #fecaca;">
-                  <strong style="color: #dc2626;">${estudiante.nombre}</strong>
-                  <div style="font-size: 14px; margin-top: 5px;">
-                    <div>Promedio: ${calcularPromedioFinal(estudiante)}/5.0</div>
-                    <div>Asistencia: ${asistencia.presente}P ${asistencia.tardanza}T ${asistencia.ausente}A</div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-        ` : ''}
-
-        <div class="footer">
-          <p>Generado con Bringo Edu - Asistente Inteligente para Profesores</p>
-          <p>${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const ventana = window.open('', '_blank');
-    ventana.document.write(contenido);
-    ventana.document.close();
-    ventana.print();
   };
 
   return (
@@ -1726,7 +1321,7 @@ export default function AsistenteProfesor() {
         setMostrarLogin={setMostrarLogin}
       />
 
-      {/* HEADER MEJORADO CON RESPONSIVE */}
+      {/* HEADER MEJORADO */}
       <header className="bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -1850,6 +1445,16 @@ export default function AsistenteProfesor() {
                 <span className="text-4xl">🏫</span>
                 Mis Clases
               </h2>
+              
+              {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES EN HOME - CORREGIDO */}
+              {usuario && claseSeleccionada && estudiantes.length > 0 && (
+                <BarraBusquedaEstudiantes
+                  estudiantes={estudiantes}
+                  onBuscarEstudiante={buscarYRedirigirEstudiante}
+                  busquedaEstudiante={busquedaEstudiante}
+                  setBusquedaEstudiante={setBusquedaEstudiante}
+                />
+              )}
               
               {!usuario && (
                 <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
@@ -2047,7 +1652,7 @@ export default function AsistenteProfesor() {
                   className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                 />
                 <button
-                  onClick={generarReporteAsistenciaPDF}
+                  onClick={() => window.print()}
                   className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-2 rounded-lg hover:from-green-700 hover:to-teal-700 transition font-bold flex items-center gap-2"
                 >
                   <Download className="w-5 h-5" />
@@ -2132,7 +1737,7 @@ export default function AsistenteProfesor() {
                   <span className="ml-2 text-xl md:text-2xl font-bold text-purple-800">{promedioGeneral()}/5</span>
                 </div>
                 <button
-                  onClick={generarReporteNotasPDF}
+                  onClick={() => window.print()}
                   className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 md:px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
                 >
                   <Download className="w-5 h-5" />
@@ -2141,35 +1746,7 @@ export default function AsistenteProfesor() {
               </div>
             </div>
             
-            {/* NUEVO: BARRA DE BÚSQUEDA */}
-            {estudiantes.length > 0 && (
-              <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl p-4 mb-6">
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                  <div className="flex-1">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      🔍 Buscar Estudiante
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Escribe el nombre del estudiante..."
-                        value={busquedaEstudiante}
-                        onChange={(e) => setBusquedaEstudiante(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
-                        className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
-                      />
-                      <button
-                        onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
-                        className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2"
-                      >
-                        <Search className="w-5 h-5" />
-                        Buscar
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* ❌ NO HAY BARRA DE BÚSQUEDA EN NOTAS - SOLO EN HOME */}
             
             {estudiantesEnRiesgo.length > 0 && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-6">
@@ -2189,7 +1766,7 @@ export default function AsistenteProfesor() {
               </div>
             )}
             
-            {/* NUEVO: CUADRÍCULA DE NOTAS RÁPIDAS */}
+            {/* CUADRÍCULA DE NOTAS RÁPIDAS - CORREGIDA */}
             {estudiantes.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -2420,7 +1997,7 @@ export default function AsistenteProfesor() {
           </div>
         )}
 
-        {/* VISTA DE PROGRESO CORREGIDA */}
+        {/* VISTA DE PROGRESO */}
         {view === 'progreso' && claseSeleccionada && (
           <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -2429,7 +2006,7 @@ export default function AsistenteProfesor() {
                 Dashboard de Progreso - {claseSeleccionada.nombre}
               </h2>
               <button
-                onClick={generarReporteProgresoPDF}
+                onClick={() => window.print()}
                 className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
               >
                 <Download className="w-5 h-5" />
@@ -2466,7 +2043,7 @@ export default function AsistenteProfesor() {
               </div>
             </div>
 
-            {/* GRÁFICO DE DISTRIBUCIÓN Y RANKING - CORREGIDO */}
+            {/* GRÁFICO DE DISTRIBUCIÓN Y RANKING */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <div className="bg-gray-50 rounded-xl p-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -2746,7 +2323,7 @@ export default function AsistenteProfesor() {
                   </div>
                 </div>
                 
-                {/* SECCIÓN ACTUALIZADA CON VERIFICACIONES DE SEGURIDAD */}
+                {/* SECCIÓN ACTUALIZADA CON NUEVO CAMPO */}
                 {planGenerado.contenidos && Array.isArray(planGenerado.contenidos) && planGenerado.contenidos.length > 0 && (
                   <div className="bg-blue-50 rounded-xl p-6">
                     <h4 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
@@ -2760,6 +2337,82 @@ export default function AsistenteProfesor() {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                
+                {/* NUEVA SECCIÓN: DESARROLLO DEL CONTENIDO PARA CLASES */}
+                {planGenerado.desarrolloClases && Object.keys(planGenerado.desarrolloClases).length > 0 && (
+                  <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border-2 border-teal-200">
+                    <h4 className="text-xl font-bold text-teal-900 mb-4 flex items-center gap-2">
+                      🎯 Desarrollo del Contenido para Clases
+                    </h4>
+                    <div className="space-y-6">
+                      {Object.entries(planGenerado.desarrolloClases).map(([contenidoKey, desarrollo]) => (
+                        <div key={contenidoKey} className="bg-white rounded-lg p-4 border border-teal-100">
+                          <h5 className="font-bold text-lg text-teal-800 mb-3">📝 {contenidoKey}</h5>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                            <div>
+                              <span className="font-semibold text-gray-700">Duración:</span>
+                              <span className="ml-2 text-teal-600">{desarrollo.duracion || '3 sesiones de 45 minutos'}</span>
+                            </div>
+                          </div>
+
+                          {desarrollo.objetivos && desarrollo.objetivos.length > 0 && (
+                            <div className="mb-3">
+                              <h6 className="font-semibold text-gray-700 mb-2">Objetivos de Aprendizaje:</h6>
+                              <ul className="space-y-1">
+                                {desarrollo.objetivos.map((objetivo, idx) => (
+                                  <li key={idx} className="flex gap-2">
+                                    <span className="text-teal-500">•</span>
+                                    <span className="text-gray-700">{objetivo}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {desarrollo.materiales && desarrollo.materiales.length > 0 && (
+                            <div className="mb-3">
+                              <h6 className="font-semibold text-gray-700 mb-2">Materiales necesarios:</h6>
+                              <ul className="space-y-1">
+                                {desarrollo.materiales.map((material, idx) => (
+                                  <li key={idx} className="flex gap-2">
+                                    <span className="text-teal-500">•</span>
+                                    <span className="text-gray-700">{material}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {desarrollo.fases && desarrollo.fases.length > 0 && (
+                            <div>
+                              <h6 className="font-semibold text-gray-700 mb-2">Fases de la actividad:</h6>
+                              <div className="space-y-3">
+                                {desarrollo.fases.map((fase, index) => (
+                                  <div key={index} className="bg-gray-50 rounded-lg p-3">
+                                    <h7 className="font-semibold text-gray-800 mb-2">
+                                      SESIÓN {index + 1} - {fase.titulo || 'Desarrollo'}
+                                    </h7>
+                                    <div className="space-y-2">
+                                      {fase.actividades && fase.actividades.map((actividad, actIdx) => (
+                                        <div key={actIdx} className="flex gap-2 text-sm">
+                                          <span className="font-medium text-teal-600 whitespace-nowrap">
+                                            {actividad.tiempo}:
+                                          </span>
+                                          <span className="text-gray-700">{actividad.descripcion}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
                 
