@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+
+// Importar librerías REALES de exportación
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow, HeadingLevel, AlignmentType } from 'docx';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -100,7 +106,7 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   );
 };
 
-// Componente para Fila de Notas Rápidas - CORREGIDO
+// Componente para Fila de Notas Rápidas
 const FilaNotasRapidas = ({ estudiante, onAgregarNota, calcularPromedioFinal, claseSeleccionada, usuario, actualizarNota }) => {
   const [notaDiaria, setNotaDiaria] = useState('');
   const [notaApreciacion, setNotaApreciacion] = useState('');
@@ -256,7 +262,7 @@ Generado con Bringo Edu 📚 | Transparente y Confiable`;
   );
 };
 
-// Componente de Modal Login MEJORADO con toggle de contraseña
+// Componente de Modal Login
 const ModalLogin = ({ 
   mostrarLogin, 
   setMostrarLogin, 
@@ -378,7 +384,7 @@ const ModalLogin = ({
   );
 };
 
-// Componente de Modal Registro MEJORADO con toggle de contraseña
+// Componente de Modal Registro
 const ModalRegistro = ({ 
   mostrarRegistro, 
   setMostrarRegistro, 
@@ -544,55 +550,439 @@ const ModalRegistro = ({
   );
 };
 
-// Componente de Barra de Búsqueda de ESTUDIANTES para Home
+// Componente de Barra de Búsqueda de ESTUDIANTES MEJORADO con sugerencias
 const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante }) => {
+  const [sugerencias, setSugerencias] = useState([]);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+
+  // Normalizar texto para búsqueda (minúsculas, sin tildes, sin comas)
+  const normalizarTexto = (texto) => {
+    return texto
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // eliminar tildes
+      .replace(/[.,]/g, ""); // eliminar comas y puntos
+  };
+
+  // Filtrar sugerencias en tiempo real
+  useEffect(() => {
+    if (busquedaEstudiante.length >= 2) {
+      const textoBusqueda = normalizarTexto(busquedaEstudiante);
+      const sugerenciasFiltradas = estudiantes.filter(estudiante => 
+        normalizarTexto(estudiante.nombre).includes(textoBusqueda)
+      );
+      setSugerencias(sugerenciasFiltradas);
+      setMostrarSugerencias(true);
+    } else {
+      setSugerencias([]);
+      setMostrarSugerencias(false);
+    }
+  }, [busquedaEstudiante, estudiantes]);
+
   const buscarYRedirigirEstudiante = (nombre) => {
     if (!nombre.trim()) return;
     
     const estudianteEncontrado = estudiantes.find(e => 
-      e.nombre.toLowerCase().includes(nombre.toLowerCase())
+      normalizarTexto(e.nombre).includes(normalizarTexto(nombre))
     );
     
     if (estudianteEncontrado) {
       onBuscarEstudiante(estudianteEncontrado);
       setBusquedaEstudiante('');
+      setMostrarSugerencias(false);
     } else {
       alert('Estudiante no encontrado');
     }
   };
 
+  const seleccionarSugerencia = (estudiante) => {
+    onBuscarEstudiante(estudiante);
+    setBusquedaEstudiante('');
+    setMostrarSugerencias(false);
+  };
+
   return (
     <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-xl p-4 mb-6">
       <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full relative">
           <label className="block text-sm font-bold text-gray-700 mb-2">
             🔍 Buscar Estudiante
           </label>
-          <div className="flex gap-2">
+          <div className="relative">
             <input
               type="text"
               placeholder="Escribe el nombre del estudiante..."
               value={busquedaEstudiante}
               onChange={(e) => setBusquedaEstudiante(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
-              className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm md:text-base"
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm md:text-base"
             />
-            <button
-              onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
-              className="bg-purple-600 text-white px-4 md:px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
-            >
-              <Search className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Buscar</span>
-            </button>
+            
+            {/* Lista de sugerencias */}
+            {mostrarSugerencias && sugerencias.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {sugerencias.map((estudiante) => (
+                  <div
+                    key={estudiante.id}
+                    onClick={() => seleccionarSugerencia(estudiante)}
+                    className="px-4 py-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
+                        {estudiante.nombre.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-medium">{estudiante.nombre}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <p className="text-xs text-gray-600 mt-2">
-            💡 Encuentra rápidamente estudiantes por nombre
+            💡 Comienza a escribir para ver sugerencias. Ignora mayúsculas, tildes y comas.
+          </p>
+        </div>
+        
+        <div className="mt-4 md:mt-6">
+          <button
+            onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
+            className="bg-purple-600 text-white px-4 md:px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
+          >
+            <Search className="w-4 h-4 md:w-5 md:h-5" />
+            <span className="hidden sm:inline">Buscar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente para Cuadro de Porcentajes (En construcción)
+const CuadroPorcentajes = () => {
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+      <div className="max-w-md mx-auto">
+        <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-6">
+          <PieChart className="w-16 h-16 text-yellow-600 mx-auto mb-4" />
+          <h3 className="text-2xl font-bold text-yellow-800 mb-2">En Construcción</h3>
+          <p className="text-yellow-700">
+            Estamos trabajando en el Cuadro de Porcentajes. Pronto tendrás acceso a estadísticas 
+            detalladas y análisis avanzados de rendimiento.
+          </p>
+        </div>
+        <div className="bg-gray-100 rounded-lg p-4">
+          <p className="text-sm text-gray-600">
+            📊 <strong>Próximamente:</strong> Gráficos de porcentajes, análisis comparativos, 
+            tendencias de rendimiento y más herramientas de análisis educativo.
           </p>
         </div>
       </div>
     </div>
   );
 };
+
+// FUNCIONES REALES DE EXPORTACIÓN
+
+// Exportar a Excel (REAL)
+const exportarAExcel = (datos, nombreArchivo) => {
+  try {
+    // Crear libro de trabajo
+    const workbook = XLSX.utils.book_new();
+    
+    // Convertir datos a hoja de trabajo
+    let worksheet;
+    if (Array.isArray(datos)) {
+      worksheet = XLSX.utils.json_to_sheet(datos);
+    } else {
+      // Si es un objeto, crear una estructura tabular
+      const datosArray = Object.entries(datos).map(([key, value]) => ({
+        Campo: key,
+        Valor: typeof value === 'object' ? JSON.stringify(value) : value
+      }));
+      worksheet = XLSX.utils.json_to_sheet(datosArray);
+    }
+    
+    // Agregar hoja al libro
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
+    
+    // Generar y descargar archivo
+    XLSX.writeFile(workbook, `${nombreArchivo}.xlsx`);
+    
+    console.log('✅ Archivo Excel generado exitosamente');
+  } catch (error) {
+    console.error('❌ Error al exportar a Excel:', error);
+    alert('Error al generar archivo Excel');
+  }
+};
+
+// Exportar a PDF (REAL)
+const exportarAPDF = (datos, nombreArchivo) => {
+  try {
+    const doc = new jsPDF();
+    
+    // Configuración inicial
+    doc.setFontSize(16);
+    doc.setTextColor(40);
+    doc.text('Reporte Bringo Edu', 20, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
+    
+    let yPosition = 50;
+    
+    // Función para agregar tabla
+    const agregarTabla = (titulo, datosTabla) => {
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      doc.text(titulo, 20, yPosition);
+      yPosition += 10;
+      
+      if (Array.isArray(datosTabla) && datosTabla.length > 0) {
+        const headers = Object.keys(datosTabla[0]);
+        const body = datosTabla.map(row => Object.values(row));
+        
+        doc.autoTable({
+          startY: yPosition,
+          head: [headers],
+          body: body,
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [128, 100, 255] }
+        });
+        
+        yPosition = doc.lastAutoTable.finalY + 10;
+      }
+    };
+    
+    // Procesar datos según el tipo
+    if (Array.isArray(datos)) {
+      agregarTabla('Datos del Reporte', datos);
+    } else if (typeof datos === 'object') {
+      // Para objetos, crear tabla de clave-valor
+      const datosArray = Object.entries(datos).map(([key, value]) => ({
+        Campo: key,
+        Valor: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
+      }));
+      agregarTabla('Resumen del Reporte', datosArray);
+    }
+    
+    // Guardar PDF
+    doc.save(`${nombreArchivo}.pdf`);
+    
+    console.log('✅ Archivo PDF generado exitosamente');
+  } catch (error) {
+    console.error('❌ Error al exportar a PDF:', error);
+    alert('Error al generar archivo PDF');
+  }
+};
+
+// Exportar a Word (REAL)
+const exportarAWord = async (datos, nombreArchivo) => {
+  try {
+    const children = [];
+    
+    // Título principal
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: "Reporte Bringo Edu",
+            bold: true,
+            size: 32,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      })
+    );
+    
+    // Fecha de generación
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `Generado: ${new Date().toLocaleDateString('es-PA')}`,
+            italics: true,
+            size: 20,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      })
+    );
+    
+    // Procesar datos según el tipo
+    if (Array.isArray(datos) && datos.length > 0) {
+      // Crear tabla para arrays
+      const tableRows = [
+        new TableRow({
+          children: Object.keys(datos[0]).map(key => 
+            new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: key, bold: true })]
+              })],
+              shading: { fill: "D0C9FF" }
+            })
+          ),
+        }),
+        ...datos.map(row => 
+          new TableRow({
+            children: Object.values(row).map(value => 
+              new TableCell({
+                children: [new Paragraph({
+                  children: [new TextRun({ 
+                    text: typeof value === 'object' ? JSON.stringify(value) : String(value) 
+                  })]
+                })]
+              })
+            ),
+          })
+        ),
+      ];
+      
+      children.push(
+        new Paragraph({
+          children: [new TextRun({ text: "Datos del Reporte", bold: true, size: 24 })],
+          spacing: { after: 200 },
+        }),
+        new Table({
+          width: { size: 100, type: "pct" },
+          rows: tableRows,
+        })
+      );
+    } else if (typeof datos === 'object') {
+      // Para objetos, crear párrafos clave-valor
+      Object.entries(datos).forEach(([key, value]) => {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: `${key}: `, bold: true, size: 20 }),
+              new TextRun({ 
+                text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value),
+                size: 20 
+              }),
+            ],
+            spacing: { after: 200 },
+          })
+        );
+      });
+    }
+    
+    // Crear documento
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: children,
+      }],
+    });
+    
+    // Generar y descargar
+    const buffer = await Packer.toBuffer(doc);
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${nombreArchivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ Archivo Word generado exitosamente');
+  } catch (error) {
+    console.error('❌ Error al exportar a Word:', error);
+    alert('Error al generar archivo Word');
+  }
+};
+
+// Subir a Google Drive (SIMULADO - requiere backend)
+const subirAGoogleDrive = (datos, nombreArchivo) => {
+  // Esta función requiere backend con OAuth2
+  alert(`🚧 Función en desarrollo\n\nPara subir a Google Drive necesitamos:\n1. Backend con OAuth2 configurado\n2. API de Google Drive habilitada\n3. Tokens de autenticación\n\nPor ahora puedes exportar en otros formatos.`);
+  console.log('Datos para Google Drive:', { datos, nombreArchivo });
+};
+
+// Componente de opciones de exportación
+const OpcionesExportacion = ({ datos, nombreArchivo, onExportar }) => {
+  const [mostrarOpciones, setMostrarOpciones] = useState(false);
+
+  const handleExportar = async (formato) => {
+    try {
+      switch (formato) {
+        case 'excel':
+          exportarAExcel(datos, nombreArchivo);
+          break;
+        case 'pdf':
+          exportarAPDF(datos, nombreArchivo);
+          break;
+        case 'word':
+          await exportarAWord(datos, nombreArchivo);
+          break;
+        case 'drive':
+          subirAGoogleDrive(datos, nombreArchivo);
+          break;
+        default:
+          break;
+      }
+      setMostrarOpciones(false);
+      if (onExportar) onExportar(formato);
+    } catch (error) {
+      console.error(`Error en exportación ${formato}:`, error);
+      alert(`Error al exportar en formato ${formato}`);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setMostrarOpciones(!mostrarOpciones)}
+        className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
+      >
+        <Download className="w-5 h-5" />
+        Exportar
+      </button>
+
+      {mostrarOpciones && (
+        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+          <button
+            onClick={() => handleExportar('excel')}
+            className="w-full px-4 py-3 text-left hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-green-600">📊</span>
+            <span>Excel (.xlsx)</span>
+          </button>
+          <button
+            onClick={() => handleExportar('pdf')}
+            className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-red-600">📄</span>
+            <span>PDF (.pdf)</span>
+          </button>
+          <button
+            onClick={() => handleExportar('word')}
+            className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-blue-600">📝</span>
+            <span>Word (.docx)</span>
+          </button>
+          <button
+            onClick={() => handleExportar('drive')}
+            className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
+          >
+            <span className="text-yellow-600">☁️</span>
+            <span>Google Drive</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// [El resto del código se mantiene igual hasta el final...]
 
 export default function AsistenteProfesor() {
   const [usuario, setUsuario] = useState(null);
@@ -611,6 +1001,8 @@ export default function AsistenteProfesor() {
   const [nombreClase, setNombreClase] = useState('');
   const [grado, setGrado] = useState('');
   const [seccion, setSeccion] = useState('');
+  const [nombreProfesorClase, setNombreProfesorClase] = useState('');
+  const [institucionClase, setInstitucionClase] = useState('');
   const [estudiantes, setEstudiantes] = useState([]);
   const [nombreEstudiante, setNombreEstudiante] = useState('');
   const [expandido, setExpandido] = useState({});
@@ -754,7 +1146,7 @@ export default function AsistenteProfesor() {
     setErrorAuth('');
   };
 
-  // FUNCIÓN MEJORADA: Generar plan trimestral con NUEVO campo
+  // FUNCIÓN MEJORADA: Generar plan trimestral
   const generarPlanConOpenAI = async () => {
     if (!nombreProfesor.trim() || !institucion.trim() || !gradoPlan.trim() || !materia.trim() || !trimestre.trim()) {
       alert('Por favor completa todos los campos');
@@ -807,8 +1199,8 @@ export default function AsistenteProfesor() {
     }
   };
 
-  // FUNCIÓN MEJORADA: Descargar plan trimestral con NUEVO campo
-  const descargarPlan = () => {
+  // FUNCIÓN MEJORADA: Descargar plan trimestral con múltiples formatos
+  const descargarPlan = (formato = 'txt') => {
     if (!planGenerado) return;
 
     let contenido = `PLAN TRIMESTRAL - BRINGO EDU\n`;
@@ -834,7 +1226,7 @@ export default function AsistenteProfesor() {
       contenido += `\n`;
     }
 
-    // NUEVO: Sección de Desarrollo del Contenido para Clases
+    // Desarrollo del Contenido para Clases
     if (planGenerado.desarrolloClases && Object.keys(planGenerado.desarrolloClases).length > 0) {
       contenido += `DESARROLLO DEL CONTENIDO PARA CLASES\n`;
       contenido += `-`.repeat(80) + `\n`;
@@ -944,7 +1336,7 @@ export default function AsistenteProfesor() {
     document.body.removeChild(elemento);
   };
 
-  // FUNCIÓN MEJORADA: Agregar clase
+  // FUNCIÓN MEJORADA: Agregar clase con nuevos campos
   const agregarClase = async () => {
     if (!usuario) {
       alert('Debes iniciar sesión para crear clases');
@@ -952,7 +1344,7 @@ export default function AsistenteProfesor() {
       return;
     }
 
-    if (!nombreClase.trim() || !grado.trim() || !seccion.trim()) {
+    if (!nombreClase.trim() || !grado.trim() || !seccion.trim() || !nombreProfesorClase.trim() || !institucionClase.trim()) {
       alert('Por favor completa todos los campos');
       return;
     }
@@ -963,6 +1355,8 @@ export default function AsistenteProfesor() {
         grado,
         seccion,
         materia: nombreClase,
+        profesor: nombreProfesorClase,
+        institucion: institucionClase,
         estudiantes: [],
         userId: usuario.uid,
         fechaCreacion: new Date().toISOString()
@@ -973,6 +1367,8 @@ export default function AsistenteProfesor() {
       setNombreClase('');
       setGrado('');
       setSeccion('');
+      setNombreProfesorClase('');
+      setInstitucionClase('');
       
     } catch (error) {
       console.error('❌ Error agregando clase:', error);
@@ -1287,6 +1683,59 @@ export default function AsistenteProfesor() {
       .slice(0, 5); // Top 5
   };
 
+  // FUNCIÓN MEJORADA: Exportar datos de progreso
+  const exportarProgreso = (formato) => {
+    const datosProgreso = {
+      clase: claseSeleccionada?.nombre,
+      profesor: claseSeleccionada?.profesor || nombreProfesorClase,
+      institucion: claseSeleccionada?.institucion || institucionClase,
+      fecha: new Date().toLocaleDateString('es-PA'),
+      promedioGeneral: promedioGeneral(),
+      totalEstudiantes: estudiantes.length,
+      estudiantesEnRiesgo: estudiantesEnRiesgo.length,
+      ranking: obtenerRankingEstudiantes(),
+      distribucion: calcularDistribucionNotas()
+    };
+
+    const nombreArchivo = `Tablero_Progreso_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`;
+
+    switch (formato) {
+      case 'excel':
+        exportarAExcel(JSON.stringify(datosProgreso), nombreArchivo);
+        break;
+      case 'pdf':
+        exportarAPDF(JSON.stringify(datosProgreso), nombreArchivo);
+        break;
+      case 'word':
+        exportarAWord(JSON.stringify(datosProgreso), nombreArchivo);
+        break;
+      case 'drive':
+        subirAGoogleDrive(JSON.stringify(datosProgreso), nombreArchivo);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const calcularDistribucionNotas = () => {
+    const distribucion = {
+      excelente: 0, // 4.5 - 5.0
+      bueno: 0,     // 3.5 - 4.4
+      regular: 0,   // 3.0 - 3.4
+      riesgo: 0     // 0 - 2.9
+    };
+
+    estudiantes.forEach(estudiante => {
+      const promedio = parseFloat(calcularPromedioFinal(estudiante));
+      if (promedio >= 4.5) distribucion.excelente++;
+      else if (promedio >= 3.5) distribucion.bueno++;
+      else if (promedio >= 3.0) distribucion.regular++;
+      else if (promedio > 0) distribucion.riesgo++;
+    });
+
+    return distribucion;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <ModalLogin
@@ -1369,7 +1818,7 @@ export default function AsistenteProfesor() {
         </div>
       </header>
 
-      {/* NAVEGACIÓN MEJORADA */}
+      {/* NAVEGACIÓN MEJORADA CON NUEVA PESTAÑA */}
       <nav className="bg-white shadow-md sticky top-0 z-40">
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto py-2">
@@ -1413,6 +1862,15 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Notas</span>
                 </button>
                 <button
+                  onClick={() => setView('porcentajes')}
+                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
+                    view === 'porcentajes' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <PieChart className="w-5 h-5" />
+                  <span className="text-sm md:text-base">Cuadro de %</span>
+                </button>
+                <button
                   onClick={() => setView('progreso')}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'progreso' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1446,7 +1904,7 @@ export default function AsistenteProfesor() {
                 Mis Clases
               </h2>
               
-              {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES EN HOME - CORREGIDO */}
+              {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES EN HOME - MEJORADA */}
               {usuario && claseSeleccionada && estudiantes.length > 0 && (
                 <BarraBusquedaEstudiantes
                   estudiantes={estudiantes}
@@ -1487,7 +1945,7 @@ export default function AsistenteProfesor() {
               {usuario && (
                 <div className="bg-gradient-to-r from-purple-100 to-blue-100 rounded-xl p-6 mb-6">
                   <h3 className="text-xl font-bold text-gray-800 mb-4">Crear Nueva Clase</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <input
                       type="text"
                       placeholder="Materia (ej: Matemáticas)"
@@ -1509,12 +1967,26 @@ export default function AsistenteProfesor() {
                       onChange={(e) => setSeccion(e.target.value)}
                       className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                     />
+                    <input
+                      type="text"
+                      placeholder="Nombre del Profesor"
+                      value={nombreProfesorClase}
+                      onChange={(e) => setNombreProfesorClase(e.target.value)}
+                      className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Institución Educativa"
+                      value={institucionClase}
+                      onChange={(e) => setInstitucionClase(e.target.value)}
+                      className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                    />
                     <button
                       onClick={agregarClase}
                       className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center justify-center gap-2"
                     >
                       <Plus className="w-5 h-5" />
-                      Crear
+                      Crear Clase
                     </button>
                   </div>
                 </div>
@@ -1538,6 +2010,8 @@ export default function AsistenteProfesor() {
                       <div>
                         <h3 className="text-2xl font-bold mb-2">{clase.nombre}</h3>
                         <p className="text-purple-100">{clase.estudiantes?.length || 0} estudiantes</p>
+                        <p className="text-purple-100 text-sm mt-1">Prof: {clase.profesor}</p>
+                        <p className="text-purple-100 text-sm">Inst: {clase.institucion}</p>
                       </div>
                       <button
                         onClick={(e) => {
@@ -1651,13 +2125,20 @@ export default function AsistenteProfesor() {
                   onChange={(e) => setFechaActual(e.target.value)}
                   className="px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                 />
-                <button
-                  onClick={() => window.print()}
-                  className="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-2 rounded-lg hover:from-green-700 hover:to-teal-700 transition font-bold flex items-center gap-2"
-                >
-                  <Download className="w-5 h-5" />
-                  Descargar
-                </button>
+                <OpcionesExportacion
+                  datos={JSON.stringify({
+                    clase: claseSeleccionada.nombre,
+                    profesor: claseSeleccionada.profesor,
+                    institucion: claseSeleccionada.institucion,
+                    fecha: fechaActual,
+                    estudiantes: estudiantes.map(e => ({
+                      nombre: e.nombre,
+                      asistencia: e.asistencia?.[fechaActual] || 'No registrada',
+                      historial: contarAsistencias(e)
+                    }))
+                  })}
+                  nombreArchivo={`Asistencia_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${fechaActual}`}
+                />
               </div>
             </div>
             
@@ -1736,17 +2217,25 @@ export default function AsistenteProfesor() {
                   <span className="text-xs md:text-sm text-purple-600 font-semibold">Promedio:</span>
                   <span className="ml-2 text-xl md:text-2xl font-bold text-purple-800">{promedioGeneral()}/5</span>
                 </div>
-                <button
-                  onClick={() => window.print()}
-                  className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 md:px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
-                >
-                  <Download className="w-5 h-5" />
-                  Descargar
-                </button>
+                <OpcionesExportacion
+                  datos={JSON.stringify({
+                    clase: claseSeleccionada.nombre,
+                    profesor: claseSeleccionada.profesor,
+                    institucion: claseSeleccionada.institucion,
+                    fecha: new Date().toLocaleDateString('es-PA'),
+                    promedioGeneral: promedioGeneral(),
+                    estudiantes: estudiantes.map(e => ({
+                      nombre: e.nombre,
+                      notasDiarias: e.notasDiarias,
+                      apreciacion: e.apreciacion,
+                      examen: e.examen,
+                      promedioFinal: calcularPromedioFinal(e)
+                    }))
+                  })}
+                  nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                />
               </div>
             </div>
-            
-            {/* ❌ NO HAY BARRA DE BÚSQUEDA EN NOTAS - SOLO EN HOME */}
             
             {estudiantesEnRiesgo.length > 0 && (
               <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 mb-6">
@@ -1997,21 +2486,34 @@ export default function AsistenteProfesor() {
           </div>
         )}
 
-        {/* VISTA DE PROGRESO */}
+        {/* NUEVA VISTA: CUADRO DE PORCENTAJES */}
+        {view === 'porcentajes' && claseSeleccionada && (
+          <CuadroPorcentajes />
+        )}
+
+        {/* VISTA DE PROGRESO MEJORADA */}
         {view === 'progreso' && claseSeleccionada && (
           <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <TrendingUp className="w-8 h-8 text-purple-600" />
-                Dashboard de Progreso - {claseSeleccionada.nombre}
+                Tablero de Progreso - {claseSeleccionada.nombre}
               </h2>
-              <button
-                onClick={() => window.print()}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
-              >
-                <Download className="w-5 h-5" />
-                Descargar Dashboard
-              </button>
+              <OpcionesExportacion
+                datos={JSON.stringify({
+                  clase: claseSeleccionada.nombre,
+                  profesor: claseSeleccionada.profesor,
+                  institucion: claseSeleccionada.institucion,
+                  fecha: new Date().toLocaleDateString('es-PA'),
+                  promedioGeneral: promedioGeneral(),
+                  totalEstudiantes: estudiantes.length,
+                  estudiantesEnRiesgo: estudiantesEnRiesgo.length,
+                  ranking: obtenerRankingEstudiantes(),
+                  distribucion: calcularDistribucionNotas()
+                })}
+                nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                onExportar={exportarProgreso}
+              />
             </div>
 
             {/* ESTADÍSTICAS GENERALES */}
@@ -2307,13 +2809,10 @@ export default function AsistenteProfesor() {
                     )}
                   </div>
                   <div className="flex gap-3 flex-wrap">
-                    <button
-                      onClick={descargarPlan}
-                      className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-bold flex items-center gap-2"
-                    >
-                      <Download className="w-5 h-5" />
-                      Descargar Plan
-                    </button>
+                    <OpcionesExportacion
+                      datos={JSON.stringify(planGenerado)}
+                      nombreArchivo={`Plan_Trimestral_${planGenerado.asignatura || materia}_${planGenerado.trimestre.replace(/\s+/g, '_')}`}
+                    />
                     <button
                       onClick={() => setPlanGenerado(null)}
                       className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition font-bold"
@@ -2323,7 +2822,7 @@ export default function AsistenteProfesor() {
                   </div>
                 </div>
                 
-                {/* SECCIÓN ACTUALIZADA CON NUEVO CAMPO */}
+                {/* SECCIÓN ACTUALIZADA CON DESARROLLO DE CLASES */}
                 {planGenerado.contenidos && Array.isArray(planGenerado.contenidos) && planGenerado.contenidos.length > 0 && (
                   <div className="bg-blue-50 rounded-xl p-6">
                     <h4 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
@@ -2340,7 +2839,7 @@ export default function AsistenteProfesor() {
                   </div>
                 )}
                 
-                {/* NUEVA SECCIÓN: DESARROLLO DEL CONTENIDO PARA CLASES */}
+                {/* DESARROLLO DEL CONTENIDO PARA CLASES */}
                 {planGenerado.desarrolloClases && Object.keys(planGenerado.desarrolloClases).length > 0 && (
                   <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 border-2 border-teal-200">
                     <h4 className="text-xl font-bold text-teal-900 mb-4 flex items-center gap-2">
@@ -2463,7 +2962,7 @@ export default function AsistenteProfesor() {
                       🛠️ Recursos Educativos
                     </h4>
                     <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {planGenerado.recursos.map((rec, i) => (
+                      {planGenerado.recursos.forEach((rec, i) => (
                         <li key={i} className="flex gap-2 items-center">
                           <span className="text-indigo-600">•</span>
                           <span className="text-gray-800">{rec}</span>
