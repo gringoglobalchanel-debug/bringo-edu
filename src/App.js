@@ -679,34 +679,51 @@ const CuadroPorcentajes = () => {
     </div>
   );
 };
-
-// FUNCIONES REALES DE EXPORTACIÓN
-
-// Exportar a Excel (REAL)
-const exportarAExcel = (datos, nombreArchivo) => {
+// Utilidades comunes
+const normalizarDatos = (datosIn) => {
   try {
-    // Crear libro de trabajo
+    if (typeof datosIn === 'string') return JSON.parse(datosIn);
+    return datosIn ?? {};
+  } catch {
+    return datosIn;
+  }
+};
+
+const objetoATabla = (obj) => {
+  return Object.entries(obj).map(([key, value]) => ({
+    Campo: key,
+    Valor: typeof value === 'object' ? JSON.stringify(value) : String(value),
+  }));
+};
+
+const descargarBlob = (blob, nombreArchivo) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nombreArchivo;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Exportar a Excel (arreglado)
+const exportarAExcel = (datosIn, nombreArchivo) => {
+  try {
+    const datos = normalizarDatos(datosIn);
     const workbook = XLSX.utils.book_new();
-    
-    // Convertir datos a hoja de trabajo
+
     let worksheet;
     if (Array.isArray(datos)) {
       worksheet = XLSX.utils.json_to_sheet(datos);
+    } else if (typeof datos === 'object' && datos) {
+      worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
     } else {
-      // Si es un objeto, crear una estructura tabular
-      const datosArray = Object.entries(datos).map(([key, value]) => ({
-        Campo: key,
-        Valor: typeof value === 'object' ? JSON.stringify(value) : value
-      }));
-      worksheet = XLSX.utils.json_to_sheet(datosArray);
+      worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
     }
-    
-    // Agregar hoja al libro
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
-    
-    // Generar y descargar archivo
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     XLSX.writeFile(workbook, `${nombreArchivo}.xlsx`);
-    
     console.log('✅ Archivo Excel generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a Excel:', error);
@@ -714,65 +731,67 @@ const exportarAExcel = (datos, nombreArchivo) => {
   }
 };
 
-// Exportar a PDF (REAL)
-const exportarAPDF = (datos, nombreArchivo) => {
+// Exportar a PDF (arreglado)
+const exportarAPDF = (datosIn, nombreArchivo) => {
   try {
+    const datos = normalizarDatos(datosIn);
     const doc = new jsPDF();
-    
-    // Configuración inicial
+
     doc.setFontSize(16);
     doc.setTextColor(40);
     doc.text('Reporte Bringo Edu', 20, 20);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
-    
-    let yPosition = 50;
-    
-    // Función para agregar tabla
+
+    let yPosition = 45;
+
     const agregarTabla = (titulo, datosTabla) => {
-      if (yPosition > 250) {
+      if (!Array.isArray(datosTabla) || datosTabla.length === 0) return;
+      if (yPosition > 260) {
         doc.addPage();
         yPosition = 20;
       }
-      
       doc.setFontSize(12);
       doc.setTextColor(40);
       doc.text(titulo, 20, yPosition);
-      yPosition += 10;
-      
-      if (Array.isArray(datosTabla) && datosTabla.length > 0) {
-        const headers = Object.keys(datosTabla[0]);
-        const body = datosTabla.map(row => Object.values(row));
-        
-        doc.autoTable({
-          startY: yPosition,
-          head: [headers],
-          body: body,
-          styles: { fontSize: 8 },
-          headStyles: { fillColor: [128, 100, 255] }
-        });
-        
-        yPosition = doc.lastAutoTable.finalY + 10;
-      }
+      yPosition += 6;
+
+      const headers = Object.keys(datosTabla[0] ?? {});
+      const body = datosTabla.map((row) =>
+        headers.map((h) => {
+          const val = row[h];
+          return typeof val === 'object' ? JSON.stringify(val) : String(val ?? '');
+        })
+      );
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [headers],
+        body,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [128, 100, 255] },
+        margin: { left: 20, right: 20 },
+      });
+
+      yPosition = doc.lastAutoTable.finalY + 10;
     };
-    
-    // Procesar datos según el tipo
+
     if (Array.isArray(datos)) {
       agregarTabla('Datos del Reporte', datos);
-    } else if (typeof datos === 'object') {
-      // Para objetos, crear tabla de clave-valor
-      const datosArray = Object.entries(datos).map(([key, value]) => ({
-        Campo: key,
-        Valor: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)
-      }));
-      agregarTabla('Resumen del Reporte', datosArray);
+    } else if (typeof datos === 'object' && datos) {
+      agregarTabla('Resumen del Reporte', objetoATabla(datos));
+      Object.entries(datos).forEach(([k, v]) => {
+        if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
+          agregarTabla(String(k), v);
+        }
+      });
+    } else {
+      agregarTabla('Datos', [{ Valor: String(datos) }]);
     }
-    
-    // Guardar PDF
+
     doc.save(`${nombreArchivo}.pdf`);
-    
     console.log('✅ Archivo PDF generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a PDF:', error);
@@ -780,118 +799,83 @@ const exportarAPDF = (datos, nombreArchivo) => {
   }
 };
 
-// Exportar a Word (REAL)
-const exportarAWord = async (datos, nombreArchivo) => {
+// Exportar a Word (arreglado)
+const exportarAWord = async (datosIn, nombreArchivo) => {
   try {
+    const datos = normalizarDatos(datosIn);
     const children = [];
-    
-    // Título principal
+
     children.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: "Reporte Bringo Edu",
-            bold: true,
-            size: 32,
-          }),
-        ],
+        children: [new TextRun({ text: 'Reporte Bringo Edu', bold: true, size: 32 })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: `Generado: ${new Date().toLocaleDateString('es-PA')}`, italics: true, size: 20 })],
         alignment: AlignmentType.CENTER,
         spacing: { after: 400 },
       })
     );
-    
-    // Fecha de generación
-    children.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: `Generado: ${new Date().toLocaleDateString('es-PA')}`,
-            italics: true,
-            size: 20,
-          }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 400 },
-      })
-    );
-    
-    // Procesar datos según el tipo
+
     if (Array.isArray(datos) && datos.length > 0) {
-      // Crear tabla para arrays
+      const headers = Object.keys(datos[0]);
       const tableRows = [
         new TableRow({
-          children: Object.keys(datos[0]).map(key => 
+          children: headers.map((key) =>
             new TableCell({
-              children: [new Paragraph({
-                children: [new TextRun({ text: key, bold: true })]
-              })],
-              shading: { fill: "D0C9FF" }
+              children: [new Paragraph({ children: [new TextRun({ text: key, bold: true })] })],
+              shading: { fill: 'D0C9FF' },
             })
           ),
         }),
-        ...datos.map(row => 
-          new TableRow({
-            children: Object.values(row).map(value => 
-              new TableCell({
-                children: [new Paragraph({
-                  children: [new TextRun({ 
-                    text: typeof value === 'object' ? JSON.stringify(value) : String(value) 
-                  })]
-                })]
-              })
-            ),
-          })
+        ...datos.map(
+          (row) =>
+            new TableRow({
+              children: headers.map((key) =>
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: [
+                        new TextRun({
+                          text: typeof row[key] === 'object' ? JSON.stringify(row[key]) : String(row[key] ?? ''),
+                        }),
+                      ],
+                    }),
+                  ],
+                })
+              ),
+            })
         ),
       ];
-      
+
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: "Datos del Reporte", bold: true, size: 24 })],
+          children: [new TextRun({ text: 'Datos del Reporte', bold: true, size: 24 })],
           spacing: { after: 200 },
         }),
-        new Table({
-          width: { size: 100, type: "pct" },
-          rows: tableRows,
-        })
+        new Table({ width: { size: 100, type: 'pct' }, rows: tableRows })
       );
-    } else if (typeof datos === 'object') {
-      // Para objetos, crear párrafos clave-valor
+    } else if (typeof datos === 'object' && datos) {
       Object.entries(datos).forEach(([key, value]) => {
         children.push(
           new Paragraph({
             children: [
               new TextRun({ text: `${key}: `, bold: true, size: 20 }),
-              new TextRun({ 
-                text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value),
-                size: 20 
-              }),
+              new TextRun({ text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''), size: 20 }),
             ],
             spacing: { after: 200 },
           })
         );
       });
+    } else {
+      children.push(new Paragraph({ children: [new TextRun({ text: String(datos ?? ''), size: 20 })] }));
     }
-    
-    // Crear documento
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        children: children,
-      }],
-    });
-    
-    // Generar y descargar
+
+    const doc = new Document({ sections: [{ properties: {}, children }] });
     const buffer = await Packer.toBuffer(doc);
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${nombreArchivo}.docx`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
+    descargarBlob(blob, `${nombreArchivo}.docx`);
     console.log('✅ Archivo Word generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a Word:', error);
@@ -899,88 +883,178 @@ const exportarAWord = async (datos, nombreArchivo) => {
   }
 };
 
-// Subir a Google Drive (SIMULADO - requiere backend)
-const subirAGoogleDrive = (datos, nombreArchivo) => {
-  // Esta función requiere backend con OAuth2
-  alert(`🚧 Función en desarrollo\n\nPara subir a Google Drive necesitamos:\n1. Backend con OAuth2 configurado\n2. API de Google Drive habilitada\n3. Tokens de autenticación\n\nPor ahora puedes exportar en otros formatos.`);
-  console.log('Datos para Google Drive:', { datos, nombreArchivo });
-};
+// Generar Blob por formato (útil también para Google Drive)
+const generarBlobPorFormato = async (datosIn, formato) => {
+  const datos = normalizarDatos(datosIn);
 
-// Componente de opciones de exportación
-const OpcionesExportacion = ({ datos, nombreArchivo, onExportar }) => {
-  const [mostrarOpciones, setMostrarOpciones] = useState(false);
-
-  const handleExportar = async (formato) => {
-    try {
-      switch (formato) {
-        case 'excel':
-          exportarAExcel(datos, nombreArchivo);
-          break;
-        case 'pdf':
-          exportarAPDF(datos, nombreArchivo);
-          break;
-        case 'word':
-          await exportarAWord(datos, nombreArchivo);
-          break;
-        case 'drive':
-          subirAGoogleDrive(datos, nombreArchivo);
-          break;
-        default:
-          break;
-      }
-      setMostrarOpciones(false);
-      if (onExportar) onExportar(formato);
-    } catch (error) {
-      console.error(`Error en exportación ${formato}:`, error);
-      alert(`Error al exportar en formato ${formato}`);
+  if (formato === 'excel') {
+    const workbook = XLSX.utils.book_new();
+    let worksheet;
+    if (Array.isArray(datos)) {
+      worksheet = XLSX.utils.json_to_sheet(datos);
+    } else if (typeof datos === 'object' && datos) {
+      worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
+    } else {
+      worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
     }
-  };
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
+    const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    return {
+      blob: new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      ext: 'xlsx',
+      mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    };
+  }
 
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setMostrarOpciones(!mostrarOpciones)}
-        className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
-      >
-        <Download className="w-5 h-5" />
-        Exportar
-      </button>
+  if (formato === 'pdf') {
+    const pdfDoc = new jsPDF();
+    pdfDoc.setFontSize(16);
+    pdfDoc.text('Reporte Bringo Edu', 20, 20);
+    pdfDoc.setFontSize(10);
+    pdfDoc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
+    let y = 45;
 
-      {mostrarOpciones && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-          <button
-            onClick={() => handleExportar('excel')}
-            className="w-full px-4 py-3 text-left hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-green-600">📊</span>
-            <span>Excel (.xlsx)</span>
-          </button>
-          <button
-            onClick={() => handleExportar('pdf')}
-            className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-red-600">📄</span>
-            <span>PDF (.pdf)</span>
-          </button>
-          <button
-            onClick={() => handleExportar('word')}
-            className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-blue-600">📝</span>
-            <span>Word (.docx)</span>
-          </button>
-          <button
-            onClick={() => handleExportar('drive')}
-            className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
-          >
-            <span className="text-yellow-600">☁️</span>
-            <span>Google Drive</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
+    const agregarTabla = (titulo, arr) => {
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      if (y > 260) {
+        pdfDoc.addPage();
+        y = 20;
+      }
+      pdfDoc.setFontSize(12);
+      pdfDoc.text(titulo, 20, y);
+      y += 6;
+      const headers = Object.keys(arr[0] ?? {});
+      const body = arr.map((r) => headers.map((h) => String(r[h] ?? '')));
+      pdfDoc.autoTable({
+        startY: y,
+        head: [headers],
+        body,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [128, 100, 255] },
+        margin: { left: 20, right: 20 },
+      });
+      y = pdfDoc.lastAutoTable.finalY + 10;
+    };
+
+    if (Array.isArray(datos)) agregarTabla('Datos del Reporte', datos);
+    else if (typeof datos === 'object' && datos) {
+      agregarTabla('Resumen del Reporte', objetoATabla(datos));
+      Object.entries(datos).forEach(([k, v]) => {
+        if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') agregarTabla(String(k), v);
+      });
+    } else {
+      agregarTabla('Datos', [{ Valor: String(datos) }]);
+    }
+
+    const blob = pdfDoc.output('blob');
+    return { blob, ext: 'pdf', mime: 'application/pdf' };
+  }
+
+  if (formato === 'word') {
+    const children = [
+      new Paragraph({
+        children: [new TextRun({ text: 'Reporte Bringo Edu', bold: true, size: 32 })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      }),
+      new Paragraph({
+        children: [new TextRun({ text: `Generado: ${new Date().toLocaleDateString('es-PA')}`, italics: true, size: 20 })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      }),
+    ];
+
+    if (Array.isArray(datos) && datos.length > 0) {
+      const headers = Object.keys(datos[0]);
+      const rows = [
+        new TableRow({
+          children: headers.map((k) =>
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: k, bold: true })] })],
+              shading: { fill: 'D0C9FF' },
+            })
+          ),
+        }),
+        ...datos.map(
+          (row) =>
+            new TableRow({
+              children: headers.map((k) =>
+                new TableCell({
+                  children: [new Paragraph({ children: [new TextRun({ text: typeof row[k] === 'object' ? JSON.stringify(row[k]) : String(row[k] ?? '') })] })],
+                })
+              ),
+            })
+        ),
+      ];
+      children.push(
+        new Paragraph({ children: [new TextRun({ text: 'Datos del Reporte', bold: true, size: 24 })], spacing: { after: 200 } }),
+        new Table({ width: { size: 100, type: 'pct' }, rows })
+      );
+    } else if (typeof datos === 'object' && datos) {
+      Object.entries(datos).forEach(([key, value]) => {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: `${key}: `, bold: true, size: 20 }),
+              new TextRun({ text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''), size: 20 }),
+            ],
+            spacing: { after: 200 },
+          })
+        );
+      });
+    } else {
+      children.push(new Paragraph({ children: [new TextRun({ text: String(datos ?? ''), size: 20 })] }));
+    }
+
+    const docx = new Document({ sections: [{ properties: {}, children }] });
+    const buffer = await Packer.toBuffer(docx);
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    return { blob, ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+  }
+
+  throw new Error('Formato no soportado');
 };
+
+// Subir a Google Drive (REAL con backend)
+const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'pdf') => {
+  try {
+    const { blob, ext, mime } = await generarBlobPorFormato(datosIn, formato);
+    const nombreArchivo = `${nombreArchivoBase}.${ext}`;
+
+    const formData = new FormData();
+    formData.append('file', blob, nombreArchivo);
+    formData.append('filename', nombreArchivo);
+    formData.append('mimeType', mime);
+
+    let authHeaders = {};
+    if (auth?.currentUser) {
+      const token = await auth.currentUser.getIdToken(false);
+      authHeaders = { Authorization: `Bearer ${token}` };
+    }
+
+    const DRIVE_UPLOAD_URL = 'https://bringo-edu-backend-2.onrender.com/api/drive/upload';
+
+    const res = await fetch(DRIVE_UPLOAD_URL, {
+      method: 'POST',
+      headers: authHeaders,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Error ${res.status} al subir a Google Drive`);
+    }
+
+    const result = await res.json().catch(() => ({}));
+    console.log('✅ Subida a Drive exitosa', result);
+    alert('Archivo subido a Google Drive correctamente');
+    return result;
+  } catch (error) {
+    console.error('❌ Error al subir a Google Drive:', error);
+    alert(`Error al subir a Google Drive: ${error.message}`);
+  }
+};
+
 
 // [El resto del código se mantiene igual hasta el final...]
 
