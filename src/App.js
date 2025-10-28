@@ -1055,6 +1055,104 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'pdf') =>
   }
 };
 
+function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
+  const [mostrarOpciones, setMostrarOpciones] = useState(false);
+  const [mostrarDrive, setMostrarDrive] = useState(false);
+
+  const handleExportar = async (formato, destino = 'descarga') => {
+    try {
+      if (destino === 'descarga') {
+        if (formato === 'excel') exportarAExcel(datos, nombreArchivo);
+        if (formato === 'pdf') exportarAPDF(datos, nombreArchivo);
+        if (formato === 'word') await exportarAWord(datos, nombreArchivo);
+      } else if (destino === 'drive') {
+        await subirAGoogleDrive(datos, nombreArchivo, formato);
+      }
+      setMostrarOpciones(false);
+      setMostrarDrive(false);
+      if (onExportar) onExportar(formato);
+    } catch (error) {
+      console.error(`Error en exportación ${formato}:`, error);
+      alert(`Error al exportar en formato ${formato}`);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => {
+          setMostrarOpciones((v) => !v);
+          setMostrarDrive(false);
+        }}
+        className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
+      >
+        <Download className="w-5 h-5" />
+        Exportar
+      </button>
+
+      {mostrarOpciones && (
+        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+          <button
+            onClick={() => handleExportar('excel', 'descarga')}
+            className="w-full px-4 py-3 text-left hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-green-600">📊</span>
+            <span>Descargar Excel (.xlsx)</span>
+          </button>
+          <button
+            onClick={() => handleExportar('pdf', 'descarga')}
+            className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-red-600">📄</span>
+            <span>Descargar PDF (.pdf)</span>
+          </button>
+          <button
+            onClick={() => handleExportar('word', 'descarga')}
+            className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 border-b border-gray-100"
+          >
+            <span className="text-blue-600">📝</span>
+            <span>Descargar Word (.docx)</span>
+          </button>
+
+          {!mostrarDrive ? (
+            <button
+              onClick={() => setMostrarDrive(true)}
+              className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
+            >
+              <span className="text-yellow-600">☁️</span>
+              <span>Google Drive</span>
+            </button>
+          ) : (
+            <div className="border-t border-gray-100">
+              <button
+                onClick={() => handleExportar('excel', 'drive')}
+                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 border-b border-gray-100"
+              >
+                <span className="text-yellow-600">☁️</span>
+                <span>Subir Excel a Drive</span>
+              </button>
+              <button
+                onClick={() => handleExportar('pdf', 'drive')}
+                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 border-b border-gray-100"
+              >
+                <span className="text-yellow-600">☁️</span>
+                <span>Subir PDF a Drive</span>
+              </button>
+              <button
+                onClick={() => handleExportar('word', 'drive')}
+                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
+              >
+                <span className="text-yellow-600">☁️</span>
+                <span>Subir Word a Drive</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // [El resto del código se mantiene igual hasta el final...]
 
