@@ -3440,16 +3440,18 @@ export default function AsistenteProfesor() {
             Desarrollado por GermanApp | Potenciado por IA
           </p>
         </div>
-      </footer>
+            </footer>
     </div>
   );
-// En lugar del forceInclude, usa este approach más agresivo:
-window._forceExportFunctions = {
-  exportarAExcel,
-  exportarAPDF, 
-  exportarAWord,
-  generarBlobPorFormato,
-  subirAGoogleDrive,
-  OpcionesExportacion
-};
+
+  window._forceExportFunctions = {
+    exportarAExcel,
+    exportarAPDF, 
+    exportarAWord,
+    generarBlobPorFormato,
+    subirAGoogleDrive,
+    OpcionesExportacion
+  };
 }
+
+export default AsistenteProfesor;
