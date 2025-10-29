@@ -799,7 +799,7 @@ const exportarAPDF = (datosIn, nombreArchivo) => {
   }
 };
 
-// Exportar a Word (arreglado)
+// Exportar a Word (CORREGIDO para navegador)
 const exportarAWord = async (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
@@ -873,16 +873,26 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     }
 
     const doc = new Document({ sections: [{ properties: {}, children }] });
-    const buffer = await Packer.toBuffer(doc);
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    descargarBlob(blob, `${nombreArchivo}.docx`);
+    
+    // CAMBIO PRINCIPAL: Usar toBlob() en lugar de toBuffer()
+    const blob = await Packer.toBlob(doc);
+    
+    // Descargar directamente el blob
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${nombreArchivo}.docx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
     console.log('✅ Archivo Word generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a Word:', error);
-    alert('Error al generar archivo Word');
+    alert('Error al generar archivo Word: ' + error.message);
   }
 };
-
 // Generar Blob por formato (útil también para Google Drive)
 const generarBlobPorFormato = async (datosIn, formato) => {
   const datos = normalizarDatos(datosIn);
@@ -1007,9 +1017,8 @@ const generarBlobPorFormato = async (datosIn, formato) => {
     }
 
     const docx = new Document({ sections: [{ properties: {}, children }] });
-    const buffer = await Packer.toBuffer(docx);
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    return { blob, ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+    const blob = await Packer.toBlob(docx);
+        return { blob, ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
   }
 
   throw new Error('Formato no soportado');
