@@ -3220,4 +3220,13 @@ export default function AsistenteProfesor() {
       </footer>
     </div>
   );
+// En lugar del forceInclude, usa este approach más agresivo:
+window._forceExportFunctions = {
+  exportarAExcel,
+  exportarAPDF, 
+  exportarAWord,
+  generarBlobPorFormato,
+  subirAGoogleDrive,
+  OpcionesExportacion
+};
 }
