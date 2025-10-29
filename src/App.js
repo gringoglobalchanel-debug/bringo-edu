@@ -3454,4 +3454,3 @@ export default function AsistenteProfesor() {
   };
 }
 
-export default AsistenteProfesor;
