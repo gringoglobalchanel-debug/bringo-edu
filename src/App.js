@@ -732,70 +732,109 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
 };
 
 // Exportar a PDF (arreglado)
+// FUNCIONES DE EXPORTACIÓN CORREGIDAS - BACKEND FUNCIONA
 const exportarAPDF = (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
+    
+    // Crear instancia de jsPDF
     const doc = new jsPDF();
-
+    
+    // Configuración inicial
     doc.setFontSize(16);
     doc.setTextColor(40);
     doc.text('Reporte Bringo Edu', 20, 20);
-
+    
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
-
+    
     let yPosition = 45;
 
+    // Función auxiliar para agregar tabla
     const agregarTabla = (titulo, datosTabla) => {
       if (!Array.isArray(datosTabla) || datosTabla.length === 0) return;
+      
+      // Verificar si necesitamos nueva página
       if (yPosition > 260) {
         doc.addPage();
         yPosition = 20;
       }
+      
+      // Agregar título
       doc.setFontSize(12);
       doc.setTextColor(40);
       doc.text(titulo, 20, yPosition);
-      yPosition += 6;
+      yPosition += 8;
 
-      const headers = Object.keys(datosTabla[0] ?? {});
-      const body = datosTabla.map((row) =>
-        headers.map((h) => {
-          const val = row[h];
-          return typeof val === 'object' ? JSON.stringify(val) : String(val ?? '');
+      // Preparar datos para la tabla
+      const headers = Object.keys(datosTabla[0] || {});
+      const body = datosTabla.map((fila) => 
+        headers.map(header => {
+          const valor = fila[header];
+          // Manejar diferentes tipos de datos
+          if (valor === null || valor === undefined) return '';
+          if (typeof valor === 'object') return JSON.stringify(valor);
+          return String(valor);
         })
       );
 
+      // Usar autoTable correctamente - FORMA SIMPLIFICADA Y SEGURA
       doc.autoTable({
         startY: yPosition,
         head: [headers],
-        body,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [128, 100, 255] },
-        margin: { left: 20, right: 20 },
+        body: body,
+        styles: { 
+          fontSize: 8, 
+          cellPadding: 2,
+          overflow: 'linebreak'
+        },
+        headStyles: { 
+          fillColor: [128, 100, 255],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
+        margin: { left: 15, right: 15 },
+        tableWidth: 'auto'
       });
 
+      // Actualizar posición Y
       yPosition = doc.lastAutoTable.finalY + 10;
     };
 
+    // Procesar datos según el tipo
     if (Array.isArray(datos)) {
       agregarTabla('Datos del Reporte', datos);
-    } else if (typeof datos === 'object' && datos) {
-      agregarTabla('Resumen del Reporte', objetoATabla(datos));
-      Object.entries(datos).forEach(([k, v]) => {
-        if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
-          agregarTabla(String(k), v);
+    } else if (typeof datos === 'object' && datos !== null) {
+      // Convertir objeto a array para tabla
+      const datosArray = Object.entries(datos).map(([clave, valor]) => ({
+        Campo: clave,
+        Valor: typeof valor === 'object' ? JSON.stringify(valor, null, 2) : String(valor)
+      }));
+      agregarTabla('Resumen del Reporte', datosArray);
+      
+      // Procesar arrays dentro del objeto
+      Object.entries(datos).forEach(([clave, valor]) => {
+        if (Array.isArray(valor) && valor.length > 0) {
+          if (typeof valor[0] === 'object') {
+            agregarTabla(clave, valor);
+          } else {
+            // Si es array de valores simples
+            const arraySimple = valor.map((v, i) => ({ '#': i + 1, 'Valor': v }));
+            agregarTabla(clave, arraySimple);
+          }
         }
       });
     } else {
       agregarTabla('Datos', [{ Valor: String(datos) }]);
     }
 
+    // Guardar el PDF
     doc.save(`${nombreArchivo}.pdf`);
     console.log('✅ Archivo PDF generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a PDF:', error);
-    alert('Error al generar archivo PDF');
+    alert('Error al generar archivo PDF: ' + error.message);
   }
 };
 
@@ -893,71 +932,140 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     alert('Error al generar archivo Word: ' + error.message);
   }
 };
-// Generar Blob por formato (útil también para Google Drive)
+
+// Función optimizada para generar blob de PDF (para Google Drive)
+const generarBlobPDF = (datosIn) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const datos = normalizarDatos(datosIn);
+      const doc = new jsPDF();
+      
+      // Configuración del documento
+      doc.setFontSize(16);
+      doc.setTextColor(40);
+      doc.text('Reporte Bringo Edu', 20, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
+      
+      let yPosition = 45;
+
+      const agregarTabla = (titulo, datosTabla) => {
+        if (!Array.isArray(datosTabla) || datosTabla.length === 0) return;
+        
+        if (yPosition > 260) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(12);
+        doc.setTextColor(40);
+        doc.text(titulo, 20, yPosition);
+        yPosition += 8;
+
+        const headers = Object.keys(datosTabla[0] || {});
+        const body = datosTabla.map((fila) => 
+          headers.map(header => {
+            const valor = fila[header];
+            if (valor === null || valor === undefined) return '';
+            if (typeof valor === 'object') return JSON.stringify(valor);
+            return String(valor);
+          })
+        );
+
+        // AutoTable seguro
+        doc.autoTable({
+          startY: yPosition,
+          head: [headers],
+          body: body,
+          styles: { 
+            fontSize: 8, 
+            cellPadding: 2,
+            overflow: 'linebreak'
+          },
+          headStyles: { 
+            fillColor: [128, 100, 255],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          margin: { left: 15, right: 15 }
+        });
+
+        yPosition = doc.lastAutoTable.finalY + 10;
+      };
+
+      // Lógica de procesamiento de datos
+      if (Array.isArray(datos)) {
+        agregarTabla('Datos del Reporte', datos);
+      } else if (typeof datos === 'object' && datos !== null) {
+        const datosArray = Object.entries(datos).map(([clave, valor]) => ({
+          Campo: clave,
+          Valor: typeof valor === 'object' ? JSON.stringify(valor, null, 2) : String(valor)
+        }));
+        agregarTabla('Resumen del Reporte', datosArray);
+        
+        Object.entries(datos).forEach(([clave, valor]) => {
+          if (Array.isArray(valor) && valor.length > 0) {
+            if (typeof valor[0] === 'object') {
+              agregarTabla(clave, valor);
+            } else {
+              const arraySimple = valor.map((v, i) => ({ '#': i + 1, 'Valor': v }));
+              agregarTabla(clave, arraySimple);
+            }
+          }
+        });
+      } else {
+        agregarTabla('Datos', [{ Valor: String(datos) }]);
+      }
+
+      // Generar blob
+      const blob = doc.output('blob');
+      resolve({
+        blob,
+        ext: 'pdf',
+        mime: 'application/pdf'
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+// Generar Blob por formato (útil también para Google Drive) - CORREGIDO
 const generarBlobPorFormato = async (datosIn, formato) => {
   const datos = normalizarDatos(datosIn);
+  console.log(`📊 Generando blob para formato: ${formato}`, datos);
 
   if (formato === 'excel') {
     const workbook = XLSX.utils.book_new();
     let worksheet;
+    
     if (Array.isArray(datos)) {
       worksheet = XLSX.utils.json_to_sheet(datos);
-    } else if (typeof datos === 'object' && datos) {
+    } else if (typeof datos === 'object' && datos !== null) {
       worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
     } else {
       worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
     }
+    
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
-    const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const arrayBuffer = XLSX.write(workbook, { 
+      bookType: 'xlsx', 
+      type: 'array' 
+    });
+    
     return {
-      blob: new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      blob: new Blob([arrayBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      }),
       ext: 'xlsx',
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
   }
 
   if (formato === 'pdf') {
-    const pdfDoc = new jsPDF();
-    pdfDoc.setFontSize(16);
-    pdfDoc.text('Reporte Bringo Edu', 20, 20);
-    pdfDoc.setFontSize(10);
-    pdfDoc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
-    let y = 45;
-
-    const agregarTabla = (titulo, arr) => {
-      if (!Array.isArray(arr) || arr.length === 0) return;
-      if (y > 260) {
-        pdfDoc.addPage();
-        y = 20;
-      }
-      pdfDoc.setFontSize(12);
-      pdfDoc.text(titulo, 20, y);
-      y += 6;
-      const headers = Object.keys(arr[0] ?? {});
-      const body = arr.map((r) => headers.map((h) => String(r[h] ?? '')));
-      pdfDoc.autoTable({
-        startY: y,
-        head: [headers],
-        body,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [128, 100, 255] },
-        margin: { left: 20, right: 20 },
-      });
-      y = pdfDoc.lastAutoTable.finalY + 10;
-    };
-
-    if (Array.isArray(datos)) agregarTabla('Datos del Reporte', datos);
-    else if (typeof datos === 'object' && datos) {
-      agregarTabla('Resumen del Reporte', objetoATabla(datos));
-      Object.entries(datos).forEach(([k, v]) => {
-        if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') agregarTabla(String(k), v);
-      });
-    } else {
-      agregarTabla('Datos', [{ Valor: String(datos) }]);
-    }
-
-    const blob = pdfDoc.output('blob');
-    return { blob, ext: 'pdf', mime: 'application/pdf' };
+    return await generarBlobPDF(datos);
   }
 
   if (formato === 'word') {
@@ -1018,72 +1126,160 @@ const generarBlobPorFormato = async (datosIn, formato) => {
 
     const docx = new Document({ sections: [{ properties: {}, children }] });
     const blob = await Packer.toBlob(docx);
-        return { blob, ext: 'docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
+    return { 
+      blob, 
+      ext: 'docx', 
+      mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+    };
   }
 
-  throw new Error('Formato no soportado');
+  throw new Error(`Formato no soportado: ${formato}`);
 };
 
-// Subir a Google Drive (REAL con backend)
+// Subir a Google Drive (REAL con backend) - MEJORADO
 const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'pdf') => {
   try {
+    console.log('🔄 Iniciando subida a Google Drive...', { nombreArchivoBase, formato });
+    
     const { blob, ext, mime } = await generarBlobPorFormato(datosIn, formato);
     const nombreArchivo = `${nombreArchivoBase}.${ext}`;
 
+    console.log('📦 Preparando FormData...', { nombreArchivo, tipo: mime });
+    
     const formData = new FormData();
     formData.append('file', blob, nombreArchivo);
     formData.append('filename', nombreArchivo);
     formData.append('mimeType', mime);
 
-    let authHeaders = {};
+    // Configurar headers de autenticación
+    let headers = {
+      'Accept': 'application/json',
+    };
+
+    // Agregar token de autenticación si está disponible
     if (auth?.currentUser) {
-      const token = await auth.currentUser.getIdToken(false);
-      authHeaders = { Authorization: `Bearer ${token}` };
+      try {
+        const token = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+        console.log('🔐 Token de autenticación incluido');
+      } catch (tokenError) {
+        console.warn('⚠️ No se pudo obtener token, intentando sin autenticación');
+      }
     }
 
     const DRIVE_UPLOAD_URL = 'https://bringo-edu-backend-2.onrender.com/api/drive/upload';
+    
+    console.log('🚀 Enviando a:', DRIVE_UPLOAD_URL);
+    
+    // Timeout de 25 segundos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-    const res = await fetch(DRIVE_UPLOAD_URL, {
+    const response = await fetch(DRIVE_UPLOAD_URL, {
       method: 'POST',
-      headers: authHeaders,
+      headers: headers,
       body: formData,
+      signal: controller.signal
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || `Error ${res.status} al subir a Google Drive`);
+    clearTimeout(timeoutId);
+
+    console.log('📨 Respuesta del servidor:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Error response:', errorText);
+      throw new Error(`Error ${response.status}: ${errorText || 'Error del servidor'}`);
     }
 
-    const result = await res.json().catch(() => ({}));
-    console.log('✅ Subida a Drive exitosa', result);
-    alert('Archivo subido a Google Drive correctamente');
+    const result = await response.json();
+    console.log('✅ Subida a Drive exitosa:', result);
+    
+    // Mostrar mensaje de éxito
+    alert(`🎉 ¡Archivo subido exitosamente a Google Drive!\n\n📁 Nombre: ${nombreArchivo}\n📊 Tipo: ${formato.toUpperCase()}`);
+    
     return result;
+
   } catch (error) {
-    console.error('❌ Error al subir a Google Drive:', error);
-    alert(`Error al subir a Google Drive: ${error.message}`);
+    console.error('❌ Error completo en subida a Drive:', error);
+    
+    let mensajeUsuario = 'Error al subir a Google Drive';
+    
+    if (error.name === 'AbortError') {
+      mensajeUsuario = '⏰ El servidor tardó demasiado en responder. Intenta nuevamente.';
+    } else if (error.message.includes('Failed to fetch')) {
+      mensajeUsuario = '🌐 Error de conexión. Verifica tu internet e intenta nuevamente.';
+    } else if (error.message.includes('404')) {
+      mensajeUsuario = '🔍 Servicio no encontrado. El backend podría estar en mantenimiento.';
+    } else {
+      mensajeUsuario = `❌ ${error.message}`;
+    }
+    
+    alert(mensajeUsuario);
+    throw error;
   }
 };
 
+// Componente OpcionesExportacion mejorado
 function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
   const [mostrarOpciones, setMostrarOpciones] = useState(false);
   const [mostrarDrive, setMostrarDrive] = useState(false);
+  const [exportando, setExportando] = useState('');
 
   const handleExportar = async (formato, destino = 'descarga') => {
+    const operacion = `${destino}-${formato}`;
+    setExportando(operacion);
+    
     try {
+      console.log(`🚀 Iniciando exportación: ${destino} - ${formato}`);
+      
       if (destino === 'descarga') {
-        if (formato === 'excel') exportarAExcel(datos, nombreArchivo);
-        if (formato === 'pdf') exportarAPDF(datos, nombreArchivo);
-        if (formato === 'word') await exportarAWord(datos, nombreArchivo);
+        switch (formato) {
+          case 'excel':
+            exportarAExcel(datos, nombreArchivo);
+            break;
+          case 'pdf':
+            exportarAPDF(datos, nombreArchivo);
+            break;
+          case 'word':
+            await exportarAWord(datos, nombreArchivo);
+            break;
+        }
+        alert(`✅ Descarga completada: ${formato.toUpperCase()}`);
       } else if (destino === 'drive') {
         await subirAGoogleDrive(datos, nombreArchivo, formato);
+        // El alert ya se muestra en subirAGoogleDrive
       }
+      
       setMostrarOpciones(false);
       setMostrarDrive(false);
-      if (onExportar) onExportar(formato);
+      if (onExportar) onExportar(formato, destino);
+      
     } catch (error) {
-      console.error(`Error en exportación ${formato}:`, error);
-      alert(`Error al exportar en formato ${formato}`);
+      console.error(`Error en exportación ${formato} a ${destino}:`, error);
+      // El error ya se muestra en las funciones individuales
+    } finally {
+      setExportando('');
     }
+  };
+
+  const getBotonTexto = (formato, destino) => {
+    if (exportando === `${destino}-${formato}`) {
+      return '⏳ Procesando...';
+    }
+    
+    const formatos = {
+      excel: '📊 Excel',
+      pdf: '📄 PDF', 
+      word: '📝 Word'
+    };
+    
+    const destinos = {
+      descarga: 'Descargar',
+      drive: 'Subir a Drive'
+    };
+    
+    return `${destinos[destino]} ${formatos[formato]}`;
   };
 
   return (
@@ -1093,76 +1289,103 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
           setMostrarOpciones((v) => !v);
           setMostrarDrive(false);
         }}
-        className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2"
+        disabled={!!exportando}
+        className={`bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2 ${
+          exportando ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
       >
-        <Download className="w-5 h-5" />
-        Exportar
+        {exportando ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Exportando...
+          </>
+        ) : (
+          <>
+            <Download className="w-5 h-5" />
+            Exportar
+          </>
+        )}
       </button>
 
-      {mostrarOpciones && (
-        <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-          <button
-            onClick={() => handleExportar('excel', 'descarga')}
-            className="w-full px-4 py-3 text-left hover:bg-green-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-green-600">📊</span>
-            <span>Descargar Excel (.xlsx)</span>
-          </button>
-          <button
-            onClick={() => handleExportar('pdf', 'descarga')}
-            className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-red-600">📄</span>
-            <span>Descargar PDF (.pdf)</span>
-          </button>
-          <button
-            onClick={() => handleExportar('word', 'descarga')}
-            className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 border-b border-gray-100"
-          >
-            <span className="text-blue-600">📝</span>
-            <span>Descargar Word (.docx)</span>
-          </button>
-
-          {!mostrarDrive ? (
+      {mostrarOpciones && !exportando && (
+        <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+          {/* Descargas locales */}
+          <div className="p-2">
+            <h4 className="text-sm font-bold text-gray-700 mb-2 px-2">📥 Descargar Localmente</h4>
             <button
-              onClick={() => setMostrarDrive(true)}
-              className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
+              onClick={() => handleExportar('excel', 'descarga')}
+              className="w-full px-4 py-3 text-left hover:bg-green-50 flex items-center gap-2 rounded-lg border-b border-gray-100 text-sm"
             >
-              <span className="text-yellow-600">☁️</span>
-              <span>Google Drive</span>
+              <span className="text-green-600">📊</span>
+              <span>{getBotonTexto('excel', 'descarga')}</span>
             </button>
-          ) : (
-            <div className="border-t border-gray-100">
+            <button
+              onClick={() => handleExportar('pdf', 'descarga')}
+              className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 rounded-lg border-b border-gray-100 text-sm"
+            >
+              <span className="text-red-600">📄</span>
+              <span>{getBotonTexto('pdf', 'descarga')}</span>
+            </button>
+            <button
+              onClick={() => handleExportar('word', 'descarga')}
+              className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 rounded-lg text-sm"
+            >
+              <span className="text-blue-600">📝</span>
+              <span>{getBotonTexto('word', 'descarga')}</span>
+            </button>
+          </div>
+
+          {/* Google Drive */}
+          <div className="border-t border-gray-200">
+            {!mostrarDrive ? (
               <button
-                onClick={() => handleExportar('excel', 'drive')}
-                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 border-b border-gray-100"
+                onClick={() => setMostrarDrive(true)}
+                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 text-sm"
               >
                 <span className="text-yellow-600">☁️</span>
-                <span>Subir Excel a Drive</span>
+                <span>Google Drive</span>
+                <span className="ml-auto">▶</span>
               </button>
-              <button
-                onClick={() => handleExportar('pdf', 'drive')}
-                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 border-b border-gray-100"
-              >
-                <span className="text-yellow-600">☁️</span>
-                <span>Subir PDF a Drive</span>
-              </button>
-              <button
-                onClick={() => handleExportar('word', 'drive')}
-                className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2"
-              >
-                <span className="text-yellow-600">☁️</span>
-                <span>Subir Word a Drive</span>
-              </button>
-            </div>
-          )}
+            ) : (
+              <div className="p-2 bg-yellow-50">
+                <div className="flex items-center gap-2 mb-2 px-2">
+                  <button
+                    onClick={() => setMostrarDrive(false)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    ◀
+                  </button>
+                  <h4 className="text-sm font-bold text-gray-700">☁️ Subir a Google Drive</h4>
+                </div>
+                <button
+                  onClick={() => handleExportar('excel', 'drive')}
+                  className="w-full px-4 py-3 text-left hover:bg-white flex items-center gap-2 rounded-lg border-b border-yellow-100 text-sm"
+                >
+                  <span className="text-green-600">📊</span>
+                  <span>{getBotonTexto('excel', 'drive')}</span>
+                </button>
+                <button
+                  onClick={() => handleExportar('pdf', 'drive')}
+                  className="w-full px-4 py-3 text-left hover:bg-white flex items-center gap-2 rounded-lg border-b border-yellow-100 text-sm"
+                >
+                  <span className="text-red-600">📄</span>
+                  <span>{getBotonTexto('pdf', 'drive')}</span>
+                </button>
+                <button
+                  onClick={() => handleExportar('word', 'drive')}
+                  className="w-full px-4 py-3 text-left hover:bg-white flex items-center gap-2 rounded-lg text-sm"
+                >
+                  <span className="text-blue-600">📝</span>
+                  <span>{getBotonTexto('word', 'drive')}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
-
-
 // [El resto del código se mantiene igual hasta el final...]
 
 export default function AsistenteProfesor() {
