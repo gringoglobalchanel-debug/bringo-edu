@@ -1167,7 +1167,7 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'pdf') =>
       }
     }
 
-    const DRIVE_UPLOAD_URL = 'https://bringo-edu-backend-2.onrender.com/api/drive/upload';
+    const DRIVE_UPLOAD_URL = 'https://bringo-edu-backend-2.onrender.com/api/export-to-drive';
     
     console.log('🚀 Enviando a:', DRIVE_UPLOAD_URL);
     
