@@ -2621,24 +2621,38 @@ export default function AsistenteProfesor() {
                   <span className="text-xs md:text-sm text-purple-600 font-semibold">Promedio:</span>
                   <span className="ml-2 text-xl md:text-2xl font-bold text-purple-800">{promedioGeneral()}/5</span>
                 </div>
-                <OpcionesExportacion
-                  datos={JSON.stringify({
-                    clase: claseSeleccionada.nombre,
-                    profesor: claseSeleccionada.profesor,
-                    institucion: claseSeleccionada.institucion,
-                    fecha: new Date().toLocaleDateString('es-PA'),
-                    promedioGeneral: promedioGeneral(),
-                    estudiantes: estudiantes.map(e => ({
-                      nombre: e.nombre,
-                      notasDiarias: e.notasDiarias,
-                      apreciacion: e.apreciacion,
-                      examen: e.examen,
-                      promedioFinal: calcularPromedioFinal(e)
-                    }))
-                  })}
-                  nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
-                />
-              </div>
+                             {/* FORZAR INCLUSIÓN DE FUNCIONES EN EL BUILD */}
+            {(() => {
+              const funcionesForzadas = [
+                exportarAExcel,
+                exportarAPDF,
+                exportarAWord,
+                generarBlobPorFormato,
+                subirAGoogleDrive,
+                OpcionesExportacion
+              ];
+              console.log('Funciones incluidas en build:', funcionesForzadas.length);
+              return null;
+            })()}
+
+            <OpcionesExportacion
+              datos={JSON.stringify({
+                clase: claseSeleccionada.nombre,
+                profesor: claseSeleccionada.profesor,
+                institucion: claseSeleccionada.institucion,
+                fecha: new Date().toLocaleDateString('es-PA'),
+                promedioGeneral: promedioGeneral(),
+                estudiantes: estudiantes.map(e => ({
+                  nombre: e.nombre,
+                  notasDiarias: e.notasDiarias,
+                  apreciacion: e.apreciacion,
+                  examen: e.examen,
+                  promedioFinal: calcularPromedioFinal(e)
+                }))
+              })}
+              nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+            />
+             </div>
             </div>
             
             {estudiantesEnRiesgo.length > 0 && (
