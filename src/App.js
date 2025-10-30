@@ -6,8 +6,6 @@ import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, q
 
 // Importar librerías REALES de exportación
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 import { Document, Packer, Paragraph, TextRun, Table, TableCell, TableRow, HeadingLevel, AlignmentType } from 'docx';
 
 // Configuración de Firebase
@@ -679,6 +677,9 @@ const CuadroPorcentajes = () => {
     </div>
   );
 };
+
+// ✅ FUNCIONES DE EXPORTACIÓN MEJORADAS - CON FORMATO Y ORDEN
+
 // Utilidades comunes
 const normalizarDatos = (datosIn) => {
   try {
@@ -707,216 +708,731 @@ const descargarBlob = (blob, nombreArchivo) => {
   URL.revokeObjectURL(url);
 };
 
-// Exportar a Excel (arreglado)
+// Función auxiliar para calcular promedios
+const calcularTotalSeccionExport = (notas) => {
+  if (!notas || notas.length === 0) return '0.00';
+  const numeros = notas.map(n => {
+    const valor = typeof n === 'object' ? parseFloat(n.valor) : parseFloat(n);
+    return isNaN(valor) ? 0 : valor;
+  }).filter(v => v > 0);
+  if (numeros.length === 0) return '0.00';
+  return (numeros.reduce((a, b) => a + b, 0) / numeros.length).toFixed(2);
+};
+
+// Función auxiliar para contar asistencias
+const contarAsistenciasExport = (estudiante) => {
+  const registros = estudiante.asistencia || {};
+  const presente = Object.values(registros).filter(v => v === 'presente').length;
+  const ausente = Object.values(registros).filter(v => v === 'ausente').length;
+  const tardanza = Object.values(registros).filter(v => v === 'tardanza').length;
+  return { presente, ausente, tardanza };
+};
+
+// Exportar a Excel MEJORADO - CON ORDEN Y ESTRUCTURA
 const exportarAExcel = (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
     const workbook = XLSX.utils.book_new();
 
-    let worksheet;
-    if (Array.isArray(datos)) {
-      worksheet = XLSX.utils.json_to_sheet(datos);
-    } else if (typeof datos === 'object' && datos) {
-      worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
+    // Crear múltiples hojas según el tipo de datos
+    if (datos.tipo === 'notas') {
+      // Hoja de resumen general
+      const resumenData = [
+        ['REPORTE DE NOTAS - BRINGO EDU'],
+        [''],
+        ['Información General'],
+        [`Clase: ${datos.clase}`],
+        [`Profesor: ${datos.profesor}`],
+        [`Institución: ${datos.institucion}`],
+        [`Fecha: ${datos.fecha}`],
+        [`Promedio General: ${datos.promedioGeneral}/5.0`],
+        [`Total Estudiantes: ${datos.totalEstudiantes}`],
+        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
+        [''],
+        ['Distribución de Rendimiento'],
+        [`Excelente (4.5-5.0): ${datos.distribucion?.excelente || 0}`],
+        [`Bueno (3.5-4.4): ${datos.distribucion?.bueno || 0}`],
+        [`Regular (3.0-3.4): ${datos.distribucion?.regular || 0}`],
+        [`En Riesgo (0-2.9): ${datos.distribucion?.riesgo || 0}`],
+        ['']
+      ];
+      
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+      XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen');
+
+      // Hoja de notas detalladas
+      const notasHeaders = [
+        'Estudiante', 
+        'Promedio Final', 
+        'Notas Diarias (Promedio)',
+        'Cantidad Notas Diarias',
+        'Apreciación (Promedio)',
+        'Cantidad Apreciación',
+        'Examen (Promedio)',
+        'Cantidad Examen',
+        'Estado'
+      ];
+      
+      const notasData = datos.estudiantes.map(estudiante => [
+        estudiante.nombre,
+        parseFloat(estudiante.promedioFinal || 0),
+        parseFloat(calcularTotalSeccionExport(estudiante.notasDiarias) || 0),
+        estudiante.notasDiarias?.length || 0,
+        parseFloat(calcularTotalSeccionExport(estudiante.apreciacion) || 0),
+        estudiante.apreciacion?.length || 0,
+        parseFloat(calcularTotalSeccionExport(estudiante.examen) || 0),
+        estudiante.examen?.length || 0,
+        parseFloat(estudiante.promedioFinal || 0) >= 3.5 ? 'Satisfactorio' : 
+        parseFloat(estudiante.promedioFinal || 0) >= 3.0 ? 'Regular' : 'En Riesgo'
+      ]);
+
+      const wsNotas = XLSX.utils.aoa_to_sheet([notasHeaders, ...notasData]);
+      XLSX.utils.book_append_sheet(workbook, wsNotas, 'Notas Detalladas');
+
+      // Hoja de notas individuales por tipo
+      const detalleHeaders = ['Estudiante', 'Tipo Nota', 'Valor', 'Fecha'];
+      const detalleData = [];
+      
+      datos.estudiantes.forEach(estudiante => {
+        // Notas diarias
+        estudiante.notasDiarias?.forEach(nota => {
+          detalleData.push([
+            estudiante.nombre,
+            'Nota Diaria',
+            parseFloat(nota.valor || 0),
+            nota.fecha || 'Sin fecha'
+          ]);
+        });
+        
+        // Apreciación
+        estudiante.apreciacion?.forEach(nota => {
+          detalleData.push([
+            estudiante.nombre,
+            'Apreciación',
+            parseFloat(nota.valor || 0),
+            nota.fecha || 'Sin fecha'
+          ]);
+        });
+        
+        // Examen
+        estudiante.examen?.forEach(nota => {
+          detalleData.push([
+            estudiante.nombre,
+            'Examen',
+            parseFloat(nota.valor || 0),
+            nota.fecha || 'Sin fecha'
+          ]);
+        });
+      });
+
+      if (detalleData.length > 0) {
+        const wsDetalle = XLSX.utils.aoa_to_sheet([detalleHeaders, ...detalleData]);
+        XLSX.utils.book_append_sheet(workbook, wsDetalle, 'Notas Individuales');
+      }
+
+    } else if (datos.tipo === 'asistencia') {
+      // Hoja de asistencia
+      const asistenciaHeaders = [
+        'Estudiante',
+        'Fecha',
+        'Estado',
+        'Total Presente',
+        'Total Tardanza',
+        'Total Ausente',
+        'Porcentaje Asistencia'
+      ];
+      
+      const asistenciaData = [];
+      datos.estudiantes?.forEach(estudiante => {
+        const asistencia = contarAsistenciasExport(estudiante);
+        const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+        const porcentajeAsistencia = totalAsistencias > 0 ? 
+          Math.round((asistencia.presente / totalAsistencias) * 100) : 0;
+        
+        // Resumen por estudiante
+        asistenciaData.push([
+          estudiante.nombre,
+          'RESUMEN',
+          '-',
+          asistencia.presente,
+          asistencia.tardanza,
+          asistencia.ausente,
+          `${porcentajeAsistencia}%`
+        ]);
+
+        // Detalle por fecha
+        Object.entries(estudiante.asistencia || {}).forEach(([fecha, estado]) => {
+          asistenciaData.push([
+            estudiante.nombre,
+            fecha,
+            estado,
+            '-', '-', '-', '-'
+          ]);
+        });
+      });
+
+      const wsAsistencia = XLSX.utils.aoa_to_sheet([asistenciaHeaders, ...asistenciaData]);
+      XLSX.utils.book_append_sheet(workbook, wsAsistencia, 'Asistencia');
+
+    } else if (datos.tipo === 'progreso') {
+      // Hoja de progreso general
+      const progresoData = [
+        ['TABLERO DE PROGRESO - BRINGO EDU'],
+        [''],
+        ['ESTADÍSTICAS GENERALES'],
+        [`Clase: ${datos.clase}`],
+        [`Profesor: ${datos.profesor}`],
+        [`Institución: ${datos.institucion}`],
+        [`Fecha: ${datos.fecha}`],
+        [`Promedio General: ${datos.promedioGeneral}/5.0`],
+        [`Total Estudiantes: ${datos.totalEstudiantes}`],
+        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
+        [''],
+        ['DISTRIBUCIÓN DE RENDIMIENTO'],
+        [`Excelente (4.5-5.0): ${datos.distribucion?.excelente || 0} estudiantes`],
+        [`Bueno (3.5-4.4): ${datos.distribucion?.bueno || 0} estudiantes`],
+        [`Regular (3.0-3.4): ${datos.distribucion?.regular || 0} estudiantes`],
+        [`En Riesgo (0-2.9): ${datos.distribucion?.riesgo || 0} estudiantes`],
+        ['']
+      ];
+
+      const wsProgreso = XLSX.utils.aoa_to_sheet(progresoData);
+      XLSX.utils.book_append_sheet(workbook, wsProgreso, 'Progreso General');
+
+      // Hoja de ranking
+      if (datos.ranking && datos.ranking.length > 0) {
+        const rankingHeaders = ['Posición', 'Estudiante', 'Promedio', 'Estado'];
+        const rankingData = datos.ranking.map((est, index) => [
+          index + 1,
+          est.nombre,
+          parseFloat(est.promedio || 0),
+          parseFloat(est.promedio || 0) >= 4.5 ? 'Excelente' :
+          parseFloat(est.promedio || 0) >= 3.5 ? 'Bueno' :
+          parseFloat(est.promedio || 0) >= 3.0 ? 'Regular' : 'En Riesgo'
+        ]);
+
+        const wsRanking = XLSX.utils.aoa_to_sheet([rankingHeaders, ...rankingData]);
+        XLSX.utils.book_append_sheet(workbook, wsRanking, 'Ranking');
+      }
+
     } else {
-      worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
+      // Exportación genérica para otros datos
+      let worksheet;
+      if (Array.isArray(datos)) {
+        worksheet = XLSX.utils.json_to_sheet(datos);
+      } else if (typeof datos === 'object' && datos) {
+        worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
+      } else {
+        worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
+      }
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     }
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     XLSX.writeFile(workbook, `${nombreArchivo}.xlsx`);
-    console.log('✅ Archivo Excel generado exitosamente');
+    console.log('✅ Archivo Excel generado exitosamente con estructura organizada');
+    
   } catch (error) {
     console.error('❌ Error al exportar a Excel:', error);
-    alert('Error al generar archivo Excel');
+    alert('Error al generar archivo Excel: ' + error.message);
   }
 };
 
-// Exportar a PDF (arreglado)
-// FUNCIONES DE EXPORTACIÓN CORREGIDAS - BACKEND FUNCIONA
-const exportarAPDF = (datosIn, nombreArchivo) => {
-  try {
-    const datos = normalizarDatos(datosIn);
-    
-    // Crear instancia de jsPDF
-    const doc = new jsPDF();
-    
-    // Configuración inicial
-    doc.setFontSize(16);
-    doc.setTextColor(40);
-    doc.text('Reporte Bringo Edu', 20, 20);
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
-    
-    let yPosition = 45;
-
-    // Función auxiliar para agregar tabla
-    const agregarTabla = (titulo, datosTabla) => {
-      if (!Array.isArray(datosTabla) || datosTabla.length === 0) return;
-      
-      // Verificar si necesitamos nueva página
-      if (yPosition > 260) {
-        doc.addPage();
-        yPosition = 20;
-      }
-      
-      // Agregar título
-      doc.setFontSize(12);
-      doc.setTextColor(40);
-      doc.text(titulo, 20, yPosition);
-      yPosition += 8;
-
-      // Preparar datos para la tabla
-      const headers = Object.keys(datosTabla[0] || {});
-      const body = datosTabla.map((fila) => 
-        headers.map(header => {
-          const valor = fila[header];
-          // Manejar diferentes tipos de datos
-          if (valor === null || valor === undefined) return '';
-          if (typeof valor === 'object') return JSON.stringify(valor);
-          return String(valor);
-        })
-      );
-
-      // Usar autoTable correctamente - FORMA SIMPLIFICADA Y SEGURA
-      doc.autoTable({
-        startY: yPosition,
-        head: [headers],
-        body: body,
-        styles: { 
-          fontSize: 8, 
-          cellPadding: 2,
-          overflow: 'linebreak'
-        },
-        headStyles: { 
-          fillColor: [128, 100, 255],
-          textColor: 255,
-          fontStyle: 'bold'
-        },
-        margin: { left: 15, right: 15 },
-        tableWidth: 'auto'
-      });
-
-      // Actualizar posición Y
-      yPosition = doc.lastAutoTable.finalY + 10;
-    };
-
-    // Procesar datos según el tipo
-    if (Array.isArray(datos)) {
-      agregarTabla('Datos del Reporte', datos);
-    } else if (typeof datos === 'object' && datos !== null) {
-      // Convertir objeto a array para tabla
-      const datosArray = Object.entries(datos).map(([clave, valor]) => ({
-        Campo: clave,
-        Valor: typeof valor === 'object' ? JSON.stringify(valor, null, 2) : String(valor)
-      }));
-      agregarTabla('Resumen del Reporte', datosArray);
-      
-      // Procesar arrays dentro del objeto
-      Object.entries(datos).forEach(([clave, valor]) => {
-        if (Array.isArray(valor) && valor.length > 0) {
-          if (typeof valor[0] === 'object') {
-            agregarTabla(clave, valor);
-          } else {
-            // Si es array de valores simples
-            const arraySimple = valor.map((v, i) => ({ '#': i + 1, 'Valor': v }));
-            agregarTabla(clave, arraySimple);
-          }
-        }
-      });
-    } else {
-      agregarTabla('Datos', [{ Valor: String(datos) }]);
-    }
-
-    // Guardar el PDF
-    doc.save(`${nombreArchivo}.pdf`);
-    console.log('✅ Archivo PDF generado exitosamente');
-  } catch (error) {
-    console.error('❌ Error al exportar a PDF:', error);
-    alert('Error al generar archivo PDF: ' + error.message);
-  }
-};
-
-// Exportar a Word (CORREGIDO para navegador)
+// Exportar a Word MEJORADO - CON FORMATO BONITO
 const exportarAWord = async (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
     const children = [];
 
+    // Título principal con formato atractivo
     children.push(
       new Paragraph({
-        children: [new TextRun({ text: 'Reporte Bringo Edu', bold: true, size: 32 })],
+        children: [
+          new TextRun({ 
+            text: '📊 BRINGO EDU - REPORTE ACADÉMICO', 
+            bold: true, 
+            size: 36,
+            color: '2D3748'
+          })
+        ],
         alignment: AlignmentType.CENTER,
         spacing: { after: 400 },
+        border: {
+          bottom: {
+            color: '6B46C1',
+            space: 1,
+            value: 'single',
+            size: 8
+          }
+        }
       }),
+      
       new Paragraph({
-        children: [new TextRun({ text: `Generado: ${new Date().toLocaleDateString('es-PA')}`, italics: true, size: 20 })],
+        children: [
+          new TextRun({ 
+            text: `Generado: ${new Date().toLocaleDateString('es-PA', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}`, 
+            italics: true, 
+            size: 22,
+            color: '718096'
+          })
+        ],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 400 },
+        spacing: { after: 600 },
       })
     );
 
-    if (Array.isArray(datos) && datos.length > 0) {
-      const headers = Object.keys(datos[0]);
-      const tableRows = [
-        new TableRow({
-          children: headers.map((key) =>
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: key, bold: true })] })],
-              shading: { fill: 'D0C9FF' },
-            })
-          ),
-        }),
-        ...datos.map(
-          (row) =>
-            new TableRow({
-              children: headers.map((key) =>
-                new TableCell({
-                  children: [
-                    new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: typeof row[key] === 'object' ? JSON.stringify(row[key]) : String(row[key] ?? ''),
-                        }),
-                      ],
-                    }),
-                  ],
-                })
-              ),
-            })
-        ),
-      ];
-
+    // Sección de información general con diseño mejorado
+    if (datos.tipo === 'notas' || datos.tipo === 'progreso') {
       children.push(
         new Paragraph({
-          children: [new TextRun({ text: 'Datos del Reporte', bold: true, size: 24 })],
+          children: [
+            new TextRun({ 
+              text: '🏫 INFORMACIÓN GENERAL', 
+              bold: true, 
+              size: 28,
+              color: '2D3748'
+            })
+          ],
           spacing: { after: 200 },
         }),
-        new Table({ width: { size: 100, type: 'pct' }, rows: tableRows })
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Clase: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.clase || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Profesor: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.profesor || 'No especificado', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Institución: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.institucion || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Promedio General: ', bold: true, size: 24 }),
+            new TextRun({ 
+              text: `${datos.promedioGeneral || '0'}/5.0`, 
+              size: 24,
+              color: parseFloat(datos.promedioGeneral || 0) >= 3.5 ? '38A169' : 'E53E3E'
+            })
+          ],
+          spacing: { after: 200 },
+        })
       );
-    } else if (typeof datos === 'object' && datos) {
-      Object.entries(datos).forEach(([key, value]) => {
+
+      // Estadísticas destacadas
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: '📈 ESTADÍSTICAS DESTACADAS', 
+              bold: true, 
+              size: 28,
+              color: '2D3748'
+            })
+          ],
+          spacing: { before: 400, after: 200 },
+        })
+      );
+
+      const stats = [
+        { label: 'Total Estudiantes', value: datos.totalEstudiantes || 0, icon: '👥' },
+        { label: 'Estudiantes en Riesgo', value: datos.estudiantesEnRiesgo || 0, icon: '⚠️' },
+        { label: 'Promedio Más Alto', value: `${Math.max(...(datos.estudiantes || []).map(e => parseFloat(e.promedioFinal || 0))).toFixed(1)}/5.0`, icon: '🏆' }
+      ];
+
+      stats.forEach(stat => {
         children.push(
           new Paragraph({
             children: [
-              new TextRun({ text: `${key}: `, bold: true, size: 20 }),
-              new TextRun({ text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''), size: 20 }),
+              new TextRun({ text: `${stat.icon} ${stat.label}: `, bold: true, size: 22 }),
+              new TextRun({ text: String(stat.value), size: 22, color: '4A5568' })
             ],
-            spacing: { after: 200 },
+            spacing: { after: 100 },
           })
         );
       });
-    } else {
-      children.push(new Paragraph({ children: [new TextRun({ text: String(datos ?? ''), size: 20 })] }));
+
+      // Distribución de rendimiento con colores
+      if (datos.distribucion) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ 
+                text: '📊 DISTRIBUCIÓN DE RENDIMIENTO', 
+                bold: true, 
+                size: 28,
+                color: '2D3748'
+              })
+            ],
+            spacing: { before: 400, after: 200 },
+          })
+        );
+
+        const distribuciones = [
+          { label: 'Excelente (4.5-5.0)', value: datos.distribucion.excelente, color: '38A169' },
+          { label: 'Bueno (3.5-4.4)', value: datos.distribucion.bueno, color: '3182CE' },
+          { label: 'Regular (3.0-3.4)', value: datos.distribucion.regular, color: 'D69E2E' },
+          { label: 'En Riesgo (0-2.9)', value: datos.distribucion.riesgo, color: 'E53E3E' }
+        ];
+
+        distribuciones.forEach(dist => {
+          children.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '• ', size: 22 }),
+                new TextRun({ text: dist.label, bold: true, size: 22 }),
+                new TextRun({ text: `: ${dist.value} estudiantes`, size: 22, color: dist.color })
+              ],
+              spacing: { after: 80 },
+            })
+          );
+        });
+      }
+
+      // Tabla de estudiantes con formato atractivo
+      if (datos.estudiantes && datos.estudiantes.length > 0) {
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({ 
+                text: '👥 DETALLE DE ESTUDIANTES', 
+                bold: true, 
+                size: 28,
+                color: '2D3748'
+              })
+            ],
+            spacing: { before: 400, after: 200 },
+          })
+        );
+
+        // Encabezados de la tabla con colores
+        const tableRows = [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Estudiante', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' },
+                margins: { top: 100, bottom: 100, left: 100, right: 100 }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Promedio', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Notas Diarias', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Apreciación', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Examen', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Estado', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              })
+            ],
+          }),
+          ...datos.estudiantes.map(estudiante => {
+            const promedio = parseFloat(estudiante.promedioFinal || 0);
+            const estadoColor = promedio >= 4.5 ? '38A169' :
+                              promedio >= 3.5 ? '3182CE' :
+                              promedio >= 3.0 ? 'D69E2E' : 'E53E3E';
+            const estadoTexto = promedio >= 4.5 ? 'Excelente' :
+                               promedio >= 3.5 ? 'Bueno' :
+                               promedio >= 3.0 ? 'Regular' : 'En Riesgo';
+
+            return new TableRow({
+              children: [
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    alignment: AlignmentType.LEFT
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: promedio.toFixed(1), 
+                      bold: true,
+                      color: estadoColor,
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: calcularTotalSeccionExport(estudiante.notasDiarias), 
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: calcularTotalSeccionExport(estudiante.apreciacion), 
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: calcularTotalSeccionExport(estudiante.examen), 
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: estadoTexto, 
+                      bold: true,
+                      color: estadoColor,
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                })
+              ],
+            });
+          })
+        ];
+
+        children.push(
+          new Table({ 
+            width: { size: 100, type: 'pct' }, 
+            rows: tableRows,
+            margins: { top: 200, bottom: 200 }
+          })
+        );
+      }
+
+    } else if (datos.tipo === 'asistencia') {
+      // Formato específico para asistencia
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: '📅 REPORTE DE ASISTENCIA', 
+              bold: true, 
+              size: 32,
+              color: '2D3748'
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Clase: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.clase || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Fecha: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.fecha || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 400 },
+        })
+      );
+
+      // Tabla de asistencia
+      if (datos.estudiantes && datos.estudiantes.length > 0) {
+        const tableRows = [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Estudiante', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Asistencia', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Tardanzas', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Ausencias', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Porcentaje', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              })
+            ],
+          }),
+          ...datos.estudiantes.map(estudiante => {
+            const asistencia = contarAsistenciasExport(estudiante);
+            const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+            const porcentajeAsistencia = totalAsistencias > 0 ? 
+              Math.round((asistencia.presente / totalAsistencias) * 100) : 0;
+            const porcentajeColor = porcentajeAsistencia >= 90 ? '38A169' :
+                                  porcentajeAsistencia >= 80 ? 'D69E2E' : 'E53E3E';
+
+            return new TableRow({
+              children: [
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    alignment: AlignmentType.LEFT
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: String(asistencia.presente), 
+                      color: '38A169',
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: String(asistencia.tardanza), 
+                      color: 'D69E2E',
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: String(asistencia.ausente), 
+                      color: 'E53E3E',
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: `${porcentajeAsistencia}%`, 
+                      bold: true,
+                      color: porcentajeColor,
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                })
+              ],
+            });
+          })
+        ];
+
+        children.push(
+          new Table({ 
+            width: { size: 100, type: 'pct' }, 
+            rows: tableRows 
+          })
+        );
+      }
     }
 
-    const doc = new Document({ sections: [{ properties: {}, children }] });
-    
-    // CAMBIO PRINCIPAL: Usar toBlob() en lugar de toBuffer()
+    // Pie de página
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({ 
+            text: '\n---\nGenerado con Bringo Edu 📚 | Asistente Inteligente para Profesores', 
+            italics: true, 
+            size: 18,
+            color: '718096'
+          })
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 600 },
+      })
+    );
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: children
+      }]
+    });
+
     const blob = await Packer.toBlob(doc);
-    
-    // Descargar directamente el blob
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -925,111 +1441,13 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+
+    console.log('✅ Archivo Word generado exitosamente con formato atractivo');
     
-    console.log('✅ Archivo Word generado exitosamente');
   } catch (error) {
     console.error('❌ Error al exportar a Word:', error);
     alert('Error al generar archivo Word: ' + error.message);
   }
-};
-
-// Función optimizada para generar blob de PDF (para Google Drive)
-const generarBlobPDF = (datosIn) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const datos = normalizarDatos(datosIn);
-      const doc = new jsPDF();
-      
-      // Configuración del documento
-      doc.setFontSize(16);
-      doc.setTextColor(40);
-      doc.text('Reporte Bringo Edu', 20, 20);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(`Generado: ${new Date().toLocaleDateString('es-PA')}`, 20, 30);
-      
-      let yPosition = 45;
-
-      const agregarTabla = (titulo, datosTabla) => {
-        if (!Array.isArray(datosTabla) || datosTabla.length === 0) return;
-        
-        if (yPosition > 260) {
-          doc.addPage();
-          yPosition = 20;
-        }
-        
-        doc.setFontSize(12);
-        doc.setTextColor(40);
-        doc.text(titulo, 20, yPosition);
-        yPosition += 8;
-
-        const headers = Object.keys(datosTabla[0] || {});
-        const body = datosTabla.map((fila) => 
-          headers.map(header => {
-            const valor = fila[header];
-            if (valor === null || valor === undefined) return '';
-            if (typeof valor === 'object') return JSON.stringify(valor);
-            return String(valor);
-          })
-        );
-
-        // AutoTable seguro
-        doc.autoTable({
-          startY: yPosition,
-          head: [headers],
-          body: body,
-          styles: { 
-            fontSize: 8, 
-            cellPadding: 2,
-            overflow: 'linebreak'
-          },
-          headStyles: { 
-            fillColor: [128, 100, 255],
-            textColor: 255,
-            fontStyle: 'bold'
-          },
-          margin: { left: 15, right: 15 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 10;
-      };
-
-      // Lógica de procesamiento de datos
-      if (Array.isArray(datos)) {
-        agregarTabla('Datos del Reporte', datos);
-      } else if (typeof datos === 'object' && datos !== null) {
-        const datosArray = Object.entries(datos).map(([clave, valor]) => ({
-          Campo: clave,
-          Valor: typeof valor === 'object' ? JSON.stringify(valor, null, 2) : String(valor)
-        }));
-        agregarTabla('Resumen del Reporte', datosArray);
-        
-        Object.entries(datos).forEach(([clave, valor]) => {
-          if (Array.isArray(valor) && valor.length > 0) {
-            if (typeof valor[0] === 'object') {
-              agregarTabla(clave, valor);
-            } else {
-              const arraySimple = valor.map((v, i) => ({ '#': i + 1, 'Valor': v }));
-              agregarTabla(clave, arraySimple);
-            }
-          }
-        });
-      } else {
-        agregarTabla('Datos', [{ Valor: String(datos) }]);
-      }
-
-      // Generar blob
-      const blob = doc.output('blob');
-      resolve({
-        blob,
-        ext: 'pdf',
-        mime: 'application/pdf'
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
 };
 
 // Generar Blob por formato (útil también para Google Drive) - CORREGIDO
@@ -1062,10 +1480,6 @@ const generarBlobPorFormato = async (datosIn, formato) => {
       ext: 'xlsx',
       mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
-  }
-
-  if (formato === 'pdf') {
-    return await generarBlobPDF(datos);
   }
 
   if (formato === 'word') {
@@ -1137,7 +1551,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
 };
 
 // Subir a Google Drive (REAL con backend) - MEJORADO
-const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'pdf') => {
+const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') => {
   try {
     console.log('🔄 Iniciando subida a Google Drive...', { nombreArchivoBase, formato });
     
@@ -1238,9 +1652,6 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
           case 'excel':
             exportarAExcel(datos, nombreArchivo);
             break;
-          case 'pdf':
-            exportarAPDF(datos, nombreArchivo);
-            break;
           case 'word':
             await exportarAWord(datos, nombreArchivo);
             break;
@@ -1270,7 +1681,6 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
     
     const formatos = {
       excel: '📊 Excel',
-      pdf: '📄 PDF', 
       word: '📝 Word'
     };
     
@@ -1320,13 +1730,6 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
               <span>{getBotonTexto('excel', 'descarga')}</span>
             </button>
             <button
-              onClick={() => handleExportar('pdf', 'descarga')}
-              className="w-full px-4 py-3 text-left hover:bg-red-50 flex items-center gap-2 rounded-lg border-b border-gray-100 text-sm"
-            >
-              <span className="text-red-600">📄</span>
-              <span>{getBotonTexto('pdf', 'descarga')}</span>
-            </button>
-            <button
               onClick={() => handleExportar('word', 'descarga')}
               className="w-full px-4 py-3 text-left hover:bg-blue-50 flex items-center gap-2 rounded-lg text-sm"
             >
@@ -1365,13 +1768,6 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
                   <span>{getBotonTexto('excel', 'drive')}</span>
                 </button>
                 <button
-                  onClick={() => handleExportar('pdf', 'drive')}
-                  className="w-full px-4 py-3 text-left hover:bg-white flex items-center gap-2 rounded-lg border-b border-yellow-100 text-sm"
-                >
-                  <span className="text-red-600">📄</span>
-                  <span>{getBotonTexto('pdf', 'drive')}</span>
-                </button>
-                <button
                   onClick={() => handleExportar('word', 'drive')}
                   className="w-full px-4 py-3 text-left hover:bg-white flex items-center gap-2 rounded-lg text-sm"
                 >
@@ -1386,7 +1782,6 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
     </div>
   );
 }
-// [El resto del código se mantiene igual hasta el final...]
 
 export default function AsistenteProfesor() {
   const [usuario, setUsuario] = useState(null);
@@ -2090,6 +2485,7 @@ export default function AsistenteProfesor() {
   // FUNCIÓN MEJORADA: Exportar datos de progreso
   const exportarProgreso = (formato) => {
     const datosProgreso = {
+      tipo: 'progreso',
       clase: claseSeleccionada?.nombre,
       profesor: claseSeleccionada?.profesor || nombreProfesorClase,
       institucion: claseSeleccionada?.institucion || institucionClase,
@@ -2098,23 +2494,28 @@ export default function AsistenteProfesor() {
       totalEstudiantes: estudiantes.length,
       estudiantesEnRiesgo: estudiantesEnRiesgo.length,
       ranking: obtenerRankingEstudiantes(),
-      distribucion: calcularDistribucionNotas()
+      distribucion: calcularDistribucionNotas(),
+      estudiantes: estudiantes.map(e => ({
+        nombre: e.nombre,
+        notasDiarias: e.notasDiarias,
+        apreciacion: e.apreciacion,
+        examen: e.examen,
+        promedioFinal: calcularPromedioFinal(e),
+        asistencia: e.asistencia
+      }))
     };
 
     const nombreArchivo = `Tablero_Progreso_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`;
 
     switch (formato) {
       case 'excel':
-        exportarAExcel(JSON.stringify(datosProgreso), nombreArchivo);
-        break;
-      case 'pdf':
-        exportarAPDF(JSON.stringify(datosProgreso), nombreArchivo);
+        exportarAExcel(datosProgreso, nombreArchivo);
         break;
       case 'word':
-        exportarAWord(JSON.stringify(datosProgreso), nombreArchivo);
+        exportarAWord(datosProgreso, nombreArchivo);
         break;
       case 'drive':
-        subirAGoogleDrive(JSON.stringify(datosProgreso), nombreArchivo);
+        subirAGoogleDrive(datosProgreso, nombreArchivo);
         break;
       default:
         break;
@@ -2531,14 +2932,15 @@ export default function AsistenteProfesor() {
                 />
                 <OpcionesExportacion
                   datos={JSON.stringify({
+                    tipo: 'asistencia',
                     clase: claseSeleccionada.nombre,
                     profesor: claseSeleccionada.profesor,
                     institucion: claseSeleccionada.institucion,
                     fecha: fechaActual,
                     estudiantes: estudiantes.map(e => ({
                       nombre: e.nombre,
-                      asistencia: e.asistencia?.[fechaActual] || 'No registrada',
-                      historial: contarAsistencias(e)
+                      asistencia: e.asistencia,
+                      ...contarAsistencias(e)
                     }))
                   })}
                   nombreArchivo={`Asistencia_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${fechaActual}`}
@@ -2621,37 +3023,28 @@ export default function AsistenteProfesor() {
                   <span className="text-xs md:text-sm text-purple-600 font-semibold">Promedio:</span>
                   <span className="ml-2 text-xl md:text-2xl font-bold text-purple-800">{promedioGeneral()}/5</span>
                 </div>
-                             {/* FORZAR INCLUSIÓN DE FUNCIONES EN EL BUILD */}
-            {(() => {
-              const funcionesForzadas = [
-                exportarAExcel,
-                exportarAPDF,
-                exportarAWord,
-                generarBlobPorFormato,
-                subirAGoogleDrive,
-                OpcionesExportacion
-              ];
-              console.log('Funciones incluidas en build:', funcionesForzadas.length);
-              return null;
-            })()}
 
-            <OpcionesExportacion
-              datos={JSON.stringify({
-                clase: claseSeleccionada.nombre,
-                profesor: claseSeleccionada.profesor,
-                institucion: claseSeleccionada.institucion,
-                fecha: new Date().toLocaleDateString('es-PA'),
-                promedioGeneral: promedioGeneral(),
-                estudiantes: estudiantes.map(e => ({
-                  nombre: e.nombre,
-                  notasDiarias: e.notasDiarias,
-                  apreciacion: e.apreciacion,
-                  examen: e.examen,
-                  promedioFinal: calcularPromedioFinal(e)
-                }))
-              })}
-              nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
-            />
+                <OpcionesExportacion
+                  datos={JSON.stringify({
+                    tipo: 'notas',
+                    clase: claseSeleccionada.nombre,
+                    profesor: claseSeleccionada.profesor,
+                    institucion: claseSeleccionada.institucion,
+                    fecha: new Date().toLocaleDateString('es-PA'),
+                    promedioGeneral: promedioGeneral(),
+                    totalEstudiantes: estudiantes.length,
+                    estudiantesEnRiesgo: estudiantesEnRiesgo.length,
+                    distribucion: calcularDistribucionNotas(),
+                    estudiantes: estudiantes.map(e => ({
+                      nombre: e.nombre,
+                      notasDiarias: e.notasDiarias,
+                      apreciacion: e.apreciacion,
+                      examen: e.examen,
+                      promedioFinal: calcularPromedioFinal(e)
+                    }))
+                  })}
+                  nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                />
              </div>
             </div>
             
@@ -2919,6 +3312,7 @@ export default function AsistenteProfesor() {
               </h2>
               <OpcionesExportacion
                 datos={JSON.stringify({
+                  tipo: 'progreso',
                   clase: claseSeleccionada.nombre,
                   profesor: claseSeleccionada.profesor,
                   institucion: claseSeleccionada.institucion,
@@ -2927,7 +3321,15 @@ export default function AsistenteProfesor() {
                   totalEstudiantes: estudiantes.length,
                   estudiantesEnRiesgo: estudiantesEnRiesgo.length,
                   ranking: obtenerRankingEstudiantes(),
-                  distribucion: calcularDistribucionNotas()
+                  distribucion: calcularDistribucionNotas(),
+                  estudiantes: estudiantes.map(e => ({
+                    nombre: e.nombre,
+                    notasDiarias: e.notasDiarias,
+                    apreciacion: e.apreciacion,
+                    examen: e.examen,
+                    promedioFinal: calcularPromedioFinal(e),
+                    asistencia: e.asistencia
+                  }))
                 })}
                 nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
                 onExportar={exportarProgreso}
@@ -3264,7 +3666,7 @@ export default function AsistenteProfesor() {
                       🎯 Desarrollo del Contenido para Clases
                     </h4>
                     <div className="space-y-6">
-                      {Object.entries(planGenerado.desarrolloClases).map(([contenidoKey, desarrollo]) => (
+                      {Object.entries(planGenerado.desarrolloClases).forEach(([contenidoKey, desarrollo]) => (
                         <div key={contenidoKey} className="bg-white rounded-lg p-4 border border-teal-100">
                           <h5 className="font-bold text-lg text-teal-800 mb-3">📝 {contenidoKey}</h5>
                           
@@ -3454,17 +3856,7 @@ export default function AsistenteProfesor() {
             Desarrollado por GermanApp | Potenciado por IA
           </p>
         </div>
-            </footer>
+      </footer>
     </div>
   );
-
-  window._forceExportFunctions = {
-    exportarAExcel,
-    exportarAPDF, 
-    exportarAWord,
-    generarBlobPorFormato,
-    subirAGoogleDrive,
-    OpcionesExportacion
-  };
 }
-
