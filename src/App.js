@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -654,30 +654,220 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
   );
 };
 
-// Componente para Cuadro de Porcentajes (En construcción)
-const CuadroPorcentajes = () => {
+// Componente para Cuadro de Porcentajes FUNCIONAL
+const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSeleccionada }) => {
+  const calcularEstadisticas = () => {
+    const anoActual = new Date().getFullYear();
+    const anoLectivo = `${anoActual}-${anoActual + 1}`;
+    
+    // Filtrar estudiantes activos (no retirados)
+    const estudiantesActivos = estudiantes.filter(e => !e.retirado);
+    const totalEstudiantes = estudiantesActivos.length;
+    
+    if (totalEstudiantes === 0) {
+      return {
+        anoLectivo,
+        aprobados: { total: 0, porcentaje: 0 },
+        fracasados: { total: 0, porcentaje: 0 },
+        fracasadosFecha: { total: 0, porcentaje: 0 },
+        sinCalificaciones: 0,
+        retirados: estudiantes.filter(e => e.retirado).length
+      };
+    }
+
+    // Calcular estadísticas
+    const aprobados = estudiantesActivos.filter(e => {
+      const promedio = parseFloat(calcularPromedioFinal(e));
+      return promedio >= 3.0 && promedio > 0;
+    });
+
+    const fracasados = estudiantesActivos.filter(e => {
+      const promedio = parseFloat(calcularPromedioFinal(e));
+      return promedio < 3.0 && promedio > 0;
+    });
+
+    // Fracasados a la fecha (estudiantes con al menos una nota pero promedio bajo 3.0)
+    const fracasadosFecha = estudiantesActivos.filter(e => {
+      const promedio = parseFloat(calcularPromedioFinal(e));
+      const tieneNotas = e.notasDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0;
+      return promedio < 3.0 && tieneNotas;
+    });
+
+    // Sin calificaciones (estudiantes sin ninguna nota registrada)
+    const sinCalificaciones = estudiantesActivos.filter(e => {
+      return e.notasDiarias.length === 0 && e.apreciacion.length === 0 && e.examen.length === 0;
+    });
+
+    const retirados = estudiantes.filter(e => e.retirado).length;
+
+    return {
+      anoLectivo,
+      aprobados: {
+        total: aprobados.length,
+        porcentaje: totalEstudiantes > 0 ? (aprobados.length / totalEstudiantes * 100).toFixed(1) : 0
+      },
+      fracasados: {
+        total: fracasados.length,
+        porcentaje: totalEstudiantes > 0 ? (fracasados.length / totalEstudiantes * 100).toFixed(1) : 0
+      },
+      fracasadosFecha: {
+        total: fracasadosFecha.length,
+        porcentaje: totalEstudiantes > 0 ? (fracasadosFecha.length / totalEstudiantes * 100).toFixed(1) : 0
+      },
+      sinCalificaciones: sinCalificaciones.length,
+      retirados: retirados
+    };
+  };
+
+  const estadisticas = calcularEstadisticas();
+
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-      <div className="max-w-md mx-auto">
-        <div className="bg-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-6">
-          <PieChart className="w-16 h-16 text-yellow-600 mx-auto mb-4" />
-          <h3 className="text-2xl font-bold text-yellow-800 mb-2">En Construcción</h3>
-          <p className="text-yellow-700">
-            Estamos trabajando en el Cuadro de Porcentajes. Pronto tendrás acceso a estadísticas 
-            detalladas y análisis avanzados de rendimiento.
-          </p>
+    <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
+          <PieChart className="w-8 h-8 text-purple-600" />
+          Cuadro de Porcentajes Académicos
+        </h2>
+        
+        <OpcionesExportacion
+          datos={JSON.stringify({
+            tipo: 'porcentajes',
+            clase: claseSeleccionada?.nombre,
+            profesor: claseSeleccionada?.profesor,
+            institucion: claseSeleccionada?.institucion,
+            fecha: new Date().toLocaleDateString('es-PA'),
+            anoLectivo: estadisticas.anoLectivo,
+            totalEstudiantes: estudiantes.filter(e => !e.retirado).length,
+            estudiantesRetirados: estadisticas.retirados,
+            estadisticas: estadisticas,
+            estudiantes: estudiantes.map(e => ({
+              nombre: e.nombre,
+              promedio: calcularPromedioFinal(e),
+              estado: parseFloat(calcularPromedioFinal(e)) >= 3.0 ? 'Aprobado' : 
+                     parseFloat(calcularPromedioFinal(e)) > 0 ? 'Fracasado' : 'Sin calificaciones',
+              retirado: e.retirado,
+              tieneNotas: e.notasDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0,
+              notasDiarias: e.notasDiarias.length,
+              apreciacion: e.apreciacion.length,
+              examen: e.examen.length
+            }))
+          })}
+          nombreArchivo={`Cuadro_Porcentajes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`}
+        />
+      </div>
+
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">📊 Estadísticas del Año Lectivo</h3>
+        <p className="text-gray-600 mb-4">
+          Resumen académico basado en el rendimiento actual de los estudiantes.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full bg-white rounded-lg overflow-hidden shadow-lg">
+          <thead className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+            <tr>
+              <th className="px-6 py-4 text-left font-bold text-lg">Año Lectivo</th>
+              <th className="px-6 py-4 text-center font-bold text-lg">Aprobados</th>
+              <th className="px-6 py-4 text-center font-bold text-lg">Fracasados</th>
+              <th className="px-6 py-4 text-center font-bold text-lg">Fracasados a la Fecha</th>
+              <th className="px-6 py-4 text-center font-bold text-lg">Sin Calificaciones</th>
+              <th className="px-6 py-4 text-center font-bold text-lg">Retirados</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-200 hover:bg-gray-50">
+              <td className="px-6 py-4 font-semibold text-gray-800">
+                {estadisticas.anoLectivo}
+              </td>
+              <td className="px-6 py-4 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-2xl font-bold text-green-600">
+                    {estadisticas.aprobados.total}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    ({estadisticas.aprobados.porcentaje}%)
+                  </span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-2xl font-bold text-red-600">
+                    {estadisticas.fracasados.total}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    ({estadisticas.fracasados.porcentaje}%)
+                  </span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-center">
+                <div className="flex flex-col items-center">
+                  <span className="text-2xl font-bold text-orange-600">
+                    {estadisticas.fracasadosFecha.total}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    ({estadisticas.fracasadosFecha.porcentaje}%)
+                  </span>
+                </div>
+              </td>
+              <td className="px-6 py-4 text-center">
+                <span className="text-2xl font-bold text-yellow-600">
+                  {estadisticas.sinCalificaciones}
+                </span>
+              </td>
+              <td className="px-6 py-4 text-center">
+                <span className="text-2xl font-bold text-gray-600">
+                  {estadisticas.retirados}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Leyenda explicativa */}
+      <div className="mt-6 bg-gray-50 rounded-lg p-4">
+        <h4 className="font-semibold text-gray-800 mb-2">📝 Leyenda:</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span><strong>Aprobados:</strong> Estudiantes con promedio ≥ 3.0</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span><strong>Fracasados:</strong> Estudiantes con promedio < 3.0</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+            <span><strong>Fracasados a la fecha:</strong> Estudiantes con notas pero promedio < 3.0</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+            <span><strong>Sin calificaciones:</strong> Estudiantes sin notas registradas</span>
+          </div>
         </div>
-        <div className="bg-gray-100 rounded-lg p-4">
-          <p className="text-sm text-gray-600">
-            📊 <strong>Próximamente:</strong> Gráficos de porcentajes, análisis comparativos, 
-            tendencias de rendimiento y más herramientas de análisis educativo.
+      </div>
+
+      {/* Resumen adicional */}
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-green-600">{estadisticas.aprobados.total}</p>
+          <p className="text-sm text-green-800">Estudiantes Aprobados</p>
+        </div>
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-red-600">
+            {estadisticas.fracasados.total + estadisticas.fracasadosFecha.total}
           </p>
+          <p className="text-sm text-red-800">Estudiantes en Riesgo</p>
+        </div>
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-center">
+          <p className="text-2xl font-bold text-blue-600">{estadisticas.retirados}</p>
+          <p className="text-sm text-blue-800">Estudiantes Retirados</p>
         </div>
       </div>
     </div>
   );
 };
-
 // ✅ FUNCIONES DE EXPORTACIÓN MEJORADAS - CON FORMATO Y ORDEN
 
 // Utilidades comunes
@@ -1945,6 +2135,41 @@ export default function AsistenteProfesor() {
     setErrorAuth('');
   };
 
+  // FUNCIÓN NUEVA: Retirar estudiante
+  const retirarEstudiante = async (id) => {
+    try {
+      const nuevosEstudiantes = estudiantes.map(e => {
+        if (e.id === id) {
+          return {
+            ...e,
+            retirado: true,
+            fechaRetiro: new Date().toISOString().split('T')[0]
+          };
+        }
+        return e;
+      });
+      setEstudiantes(nuevosEstudiantes);
+      
+      // Actualizar en Firestore
+      await updateDoc(doc(db, 'clases', claseSeleccionada.id), {
+        estudiantes: nuevosEstudiantes
+      });
+      
+      // Actualizar estado local
+      const clasesActualizadas = clases.map(c => 
+        c.id === claseSeleccionada.id 
+          ? { ...c, estudiantes: nuevosEstudiantes }
+          : c
+      );
+      setClases(clasesActualizadas);
+      
+      alert('Estudiante marcado como retirado');
+    } catch (error) {
+      console.error('Error retirando estudiante:', error);
+      alert('Error al retirar estudiante');
+    }
+  };
+
   // FUNCIÓN MEJORADA: Generar plan trimestral
   const generarPlanConOpenAI = async () => {
     if (!nombreProfesor.trim() || !institucion.trim() || !gradoPlan.trim() || !materia.trim() || !trimestre.trim()) {
@@ -2225,7 +2450,8 @@ export default function AsistenteProfesor() {
         notasDiarias: [],
         apreciacion: [],
         examen: [],
-        asistencia: {}
+        asistencia: {},
+        retirado: false
       };
       
       const nuevosEstudiantes = [...estudiantes, nuevoEstudiante];
@@ -2904,19 +3130,29 @@ export default function AsistenteProfesor() {
                         <h4 className="text-xl font-bold text-gray-800">{estudiante.nombre}</h4>
                         <p className="text-sm text-gray-600">
                           Promedio: {calcularPromedioFinal(estudiante)}/5
+                          {estudiante.retirado && <span className="ml-2 text-red-600 font-semibold">(RETIRADO)</span>}
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`¿Eliminar a ${estudiante.nombre}?`)) {
-                          eliminarEstudiante(estudiante.id);
-                        }
-                      }}
-                      className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition mt-4 md:mt-0"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2 mt-4 md:mt-0">
+                      <button
+                        onClick={() => retirarEstudiante(estudiante.id)}
+                        className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-lg transition"
+                        title="Retirar estudiante"
+                      >
+                        <UserX className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`¿Eliminar a ${estudiante.nombre}?`)) {
+                            eliminarEstudiante(estudiante.id);
+                          }
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -3305,9 +3541,12 @@ export default function AsistenteProfesor() {
           </div>
         )}
 
-        {/* NUEVA VISTA: CUADRO DE PORCENTAJES */}
+        {/* NUEVA VISTA: CUADRO DE PORCENTAJES FUNCIONAL */}
         {view === 'porcentajes' && claseSeleccionada && (
-          <CuadroPorcentajes />
+          <CuadroPorcentajes 
+            estudiantes={estudiantes} 
+            calcularPromedioFinal={calcularPromedioFinal} 
+          />
         )}
 
         {/* VISTA DE PROGRESO MEJORADA */}
