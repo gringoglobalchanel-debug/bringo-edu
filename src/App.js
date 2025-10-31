@@ -2011,12 +2011,12 @@ export default function AsistenteProfesor() {
     contenido += `Institución: ${planGenerado.institucion}\n`;
     contenido += `Grado: ${planGenerado.grado || gradoPlan}\n`;
     contenido += `Asignatura: ${planGenerado.asignatura || planGenerado.materia || materia}\n`;
-    contenido += `Trimestre: ${planGenerado.trimestre}\n`;
+    contenido += `Trimestre: ${planGenerado.trimestre || trimestre}\n`;
     contenido += `Año Escolar: ${planGenerado.anioEscolar || new Date().getFullYear()}\n`;
     contenido += `Duración: ${planGenerado.duracionSemanas || '10-12'} semanas\n`;
     contenido += `Fecha de generación: ${planGenerado.fecha || new Date().toLocaleDateString('es-PA')}\n\n`;
 
-    if (planGenerado.contenidos && planGenerado.contenidos.length > 0) {
+    if (planGenerado.contenidos && Array.isArray(planGenerado.contenidos) && planGenerado.contenidos.length > 0) {
       contenido += `CONTENIDOS DEL TRIMESTRE\n`;
       contenido += `-`.repeat(80) + `\n`;
       planGenerado.contenidos.forEach((cont, i) => {
@@ -2065,7 +2065,7 @@ export default function AsistenteProfesor() {
       });
     }
 
-    if (planGenerado.competencias && planGenerado.competencias.length > 0) {
+    if (planGenerado.competencias && Array.isArray(planGenerado.competencias) && planGenerado.competencias.length > 0) {
       contenido += `COMPETENCIAS A DESARROLLAR\n`;
       contenido += `-`.repeat(80) + `\n`;
       planGenerado.competencias.forEach((comp, i) => {
@@ -2074,7 +2074,7 @@ export default function AsistenteProfesor() {
       contenido += `\n`;
     }
 
-    if (planGenerado.indicadoresLogro && planGenerado.indicadoresLogro.length > 0) {
+    if (planGenerado.indicadoresLogro && Array.isArray(planGenerado.indicadoresLogro) && planGenerado.indicadoresLogro.length > 0) {
       contenido += `INDICADORES DE LOGRO\n`;
       contenido += `-`.repeat(80) + `\n`;
       planGenerado.indicadoresLogro.forEach((ind, i) => {
@@ -2089,7 +2089,7 @@ export default function AsistenteProfesor() {
       contenido += `${planGenerado.metodologia}\n\n`;
     }
 
-    if (planGenerado.recursos && planGenerado.recursos.length > 0) {
+    if (planGenerado.recursos && Array.isArray(planGenerado.recursos) && planGenerado.recursos.length > 0) {
       contenido += `RECURSOS EDUCATIVOS\n`;
       contenido += `-`.repeat(80) + `\n`;
       planGenerado.recursos.forEach((rec, i) => {
@@ -2107,7 +2107,7 @@ export default function AsistenteProfesor() {
       contenido += `\n`;
     }
    
-    if (planGenerado.adaptaciones && planGenerado.adaptaciones.length > 0) {
+    if (planGenerado.adaptaciones && Array.isArray(planGenerado.adaptaciones) && planGenerado.adaptaciones.length > 0) {
       contenido += `ADAPTACIONES CURRICULARES\n`;
       contenido += `-`.repeat(80) + `\n`;
       planGenerado.adaptaciones.forEach((adap, i) => {
@@ -2129,7 +2129,15 @@ export default function AsistenteProfesor() {
     const elemento = document.createElement('a');
     const archivo = new Blob([contenido], { type: 'text/plain;charset=utf-8' });
     elemento.href = URL.createObjectURL(archivo);
-    elemento.download = `Plan_Trimestral_${planGenerado.asignatura || materia}_${planGenerado.trimestre.replace(/\s+/g, '_')}.txt`;
+    elemento.download = `Plan_Trimestral_${
+      planGenerado.asignatura || 
+      planGenerado.materia || 
+      materia || 
+      'Asignatura'
+    }_${
+      (planGenerado.trimestre || trimestre || 'Trimestre')
+      .replace(/\s+/g, '_')
+    }.txt`;
     document.body.appendChild(elemento);
     elemento.click();
     document.body.removeChild(elemento);
@@ -3618,12 +3626,12 @@ export default function AsistenteProfesor() {
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6">
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-800">Plan {planGenerado.trimestre}</h3>
+                    <h3 className="text-2xl font-bold text-gray-800">Plan {planGenerado.trimestre || trimestre}</h3>
                     <p className="text-gray-600 mt-1">
                       {planGenerado.asignatura || planGenerado.materia || materia} - {planGenerado.grado || gradoPlan} | {planGenerado.institucion || institucion}
                     </p>
                     <p className="text-sm text-gray-500 mt-1">Profesor: {planGenerado.docente || planGenerado.profesor || nombreProfesor}</p>
-                    <p className="text-sm text-gray-500">Trimestre: {planGenerado.trimestre} | Fecha: {planGenerado.fecha}</p>
+                    <p className="text-sm text-gray-500">Trimestre: {planGenerado.trimestre || trimestre} | Fecha: {planGenerado.fecha}</p>
                     {planGenerado.duracionSemanas && (
                       <p className="text-sm text-gray-500">Duración: {planGenerado.duracionSemanas} semanas</p>
                     )}
@@ -3631,7 +3639,15 @@ export default function AsistenteProfesor() {
                   <div className="flex gap-3 flex-wrap">
                     <OpcionesExportacion
                       datos={JSON.stringify(planGenerado)}
-                      nombreArchivo={`Plan_Trimestral_${planGenerado.asignatura || materia}_${planGenerado.trimestre.replace(/\s+/g, '_')}`}
+                      nombreArchivo={`Plan_Trimestral_${
+                        planGenerado.asignatura || 
+                        planGenerado.materia || 
+                        materia || 
+                        'Asignatura'
+                      }_${
+                        (planGenerado.trimestre || trimestre || 'Trimestre')
+                        .replace(/\s+/g, '_')
+                      }`}
                     />
                     <button
                       onClick={() => setPlanGenerado(null)}
@@ -3646,7 +3662,7 @@ export default function AsistenteProfesor() {
                 {planGenerado.contenidos && Array.isArray(planGenerado.contenidos) && planGenerado.contenidos.length > 0 && (
                   <div className="bg-blue-50 rounded-xl p-6">
                     <h4 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
-                      📚 Contenidos del {planGenerado.trimestre}
+                      📚 Contenidos del {planGenerado.trimestre || trimestre}
                     </h4>
                     <ul className="space-y-2">
                       {planGenerado.contenidos.map((cont, i) => (
@@ -3666,7 +3682,7 @@ export default function AsistenteProfesor() {
                       🎯 Desarrollo del Contenido para Clases
                     </h4>
                     <div className="space-y-6">
-                      {Object.entries(planGenerado.desarrolloClases).forEach(([contenidoKey, desarrollo]) => (
+                      {Object.entries(planGenerado.desarrolloClases).map(([contenidoKey, desarrollo]) => (
                         <div key={contenidoKey} className="bg-white rounded-lg p-4 border border-teal-100">
                           <h5 className="font-bold text-lg text-teal-800 mb-3">📝 {contenidoKey}</h5>
                           
@@ -3782,7 +3798,7 @@ export default function AsistenteProfesor() {
                       🛠️ Recursos Educativos
                     </h4>
                     <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {planGenerado.recursos.forEach((rec, i) => (
+                      {planGenerado.recursos.map((rec, i) => (
                         <li key={i} className="flex gap-2 items-center">
                           <span className="text-indigo-600">•</span>
                           <span className="text-gray-800">{rec}</span>
