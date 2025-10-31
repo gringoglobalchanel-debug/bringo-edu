@@ -835,11 +835,11 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <span><strong>Fracasados:</strong> Estudiantes con promedio < 3.0</span>
+            <span><strong>Fracasados:</strong> Estudiantes con promedio &lt; 3.0</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-            <span><strong>Fracasados a la fecha:</strong> Estudiantes con notas pero promedio < 3.0</span>
+            <span><strong>Fracasados a la fecha:</strong> Estudiantes con notas pero promedio &lt; 3.0</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
