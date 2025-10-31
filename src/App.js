@@ -868,6 +868,7 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
     </div>
   );
 };
+
 // ✅ FUNCIONES DE EXPORTACIÓN MEJORADAS - CON FORMATO Y ORDEN
 
 // Utilidades comunes
@@ -1104,6 +1105,47 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         const wsRanking = XLSX.utils.aoa_to_sheet([rankingHeaders, ...rankingData]);
         XLSX.utils.book_append_sheet(workbook, wsRanking, 'Ranking');
       }
+
+    } else if (datos.tipo === 'porcentajes') {
+      // Hoja de porcentajes académicos
+      const porcentajesData = [
+        ['CUADRO DE PORCENTAJES ACADÉMICOS - BRINGO EDU'],
+        [''],
+        ['INFORMACIÓN GENERAL'],
+        [`Clase: ${datos.clase}`],
+        [`Profesor: ${datos.profesor}`],
+        [`Institución: ${datos.institucion}`],
+        [`Fecha: ${datos.fecha}`],
+        [`Año Lectivo: ${datos.anoLectivo}`],
+        [`Total Estudiantes Activos: ${datos.totalEstudiantes}`],
+        [`Estudiantes Retirados: ${datos.estudiantesRetirados}`],
+        [''],
+        ['ESTADÍSTICAS ACADÉMICAS'],
+        [`Aprobados: ${datos.estadisticas.aprobados.total} (${datos.estadisticas.aprobados.porcentaje}%)`],
+        [`Fracasados: ${datos.estadisticas.fracasados.total} (${datos.estadisticas.fracasados.porcentaje}%)`],
+        [`Fracasados a la Fecha: ${datos.estadisticas.fracasadosFecha.total} (${datos.estadisticas.fracasadosFecha.porcentaje}%)`],
+        [`Sin Calificaciones: ${datos.estadisticas.sinCalificaciones}`],
+        ['']
+      ];
+
+      const wsPorcentajes = XLSX.utils.aoa_to_sheet(porcentajesData);
+      XLSX.utils.book_append_sheet(workbook, wsPorcentajes, 'Porcentajes');
+
+      // Hoja de detalle por estudiante
+      const detalleHeaders = ['Estudiante', 'Promedio', 'Estado', 'Retirado', 'Tiene Notas', 'Notas Diarias', 'Apreciación', 'Examen'];
+      const detalleData = datos.estudiantes.map(estudiante => [
+        estudiante.nombre,
+        parseFloat(estudiante.promedio || 0),
+        estudiante.estado,
+        estudiante.retirado ? 'Sí' : 'No',
+        estudiante.tieneNotas ? 'Sí' : 'No',
+        estudiante.notasDiarias,
+        estudiante.apreciacion,
+        estudiante.examen
+      ]);
+
+      const wsDetalle = XLSX.utils.aoa_to_sheet([detalleHeaders, ...detalleData]);
+      XLSX.utils.book_append_sheet(workbook, wsDetalle, 'Detalle Estudiantes');
 
     } else {
       // Exportación genérica para otros datos
@@ -1597,6 +1639,255 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
           })
         );
       }
+    } else if (datos.tipo === 'porcentajes') {
+      // Formato específico para porcentajes académicos
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: '📊 CUADRO DE PORCENTAJES ACADÉMICOS', 
+              bold: true, 
+              size: 32,
+              color: '2D3748'
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Año Lectivo: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.anoLectivo || 'No especificado', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Clase: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.clase || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Profesor: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.profesor || 'No especificado', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Institución: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.institucion || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 400 },
+        })
+      );
+
+      // Tabla de estadísticas principales
+      const tableRows = [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Indicador', bold: true, color: 'FFFFFF' })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: '4C51BF' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Cantidad', bold: true, color: 'FFFFFF' })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: '4C51BF' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Porcentaje', bold: true, color: 'FFFFFF' })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: '4C51BF' }
+            })
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Aprobados', size: 20 })],
+                alignment: AlignmentType.LEFT
+              })],
+              shading: { fill: 'F0FFF4' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: String(datos.estadisticas.aprobados.total), 
+                  size: 20,
+                  color: '38A169'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'F0FFF4' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: `${datos.estadisticas.aprobados.porcentaje}%`, 
+                  size: 20,
+                  color: '38A169'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'F0FFF4' }
+            })
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Fracasados', size: 20 })],
+                alignment: AlignmentType.LEFT
+              })],
+              shading: { fill: 'FEF2F2' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: String(datos.estadisticas.fracasados.total), 
+                  size: 20,
+                  color: 'E53E3E'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FEF2F2' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: `${datos.estadisticas.fracasados.porcentaje}%`, 
+                  size: 20,
+                  color: 'E53E3E'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FEF2F2' }
+            })
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Fracasados a la Fecha', size: 20 })],
+                alignment: AlignmentType.LEFT
+              })],
+              shading: { fill: 'FFFAF0' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: String(datos.estadisticas.fracasadosFecha.total), 
+                  size: 20,
+                  color: 'DD6B20'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FFFAF0' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: `${datos.estadisticas.fracasadosFecha.porcentaje}%`, 
+                  size: 20,
+                  color: 'DD6B20'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FFFAF0' }
+            })
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Sin Calificaciones', size: 20 })],
+                alignment: AlignmentType.LEFT
+              })],
+              shading: { fill: 'FFFBEB' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: String(datos.estadisticas.sinCalificaciones), 
+                  size: 20,
+                  color: 'D69E2E'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FFFBEB' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: '-', 
+                  size: 20,
+                  color: 'D69E2E'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'FFFBEB' }
+            })
+          ],
+        }),
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ text: 'Retirados', size: 20 })],
+                alignment: AlignmentType.LEFT
+              })],
+              shading: { fill: 'F7FAFC' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: String(datos.estadisticas.retirados), 
+                  size: 20,
+                  color: '4A5568'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'F7FAFC' }
+            }),
+            new TableCell({
+              children: [new Paragraph({ 
+                children: [new TextRun({ 
+                  text: '-', 
+                  size: 20,
+                  color: '4A5568'
+                })],
+                alignment: AlignmentType.CENTER
+              })],
+              shading: { fill: 'F7FAFC' }
+            })
+          ],
+        })
+      ];
+
+      children.push(
+        new Table({ 
+          width: { size: 100, type: 'pct' }, 
+          rows: tableRows 
+        })
+      );
     }
 
     // Pie de página
@@ -3545,7 +3836,8 @@ export default function AsistenteProfesor() {
         {view === 'porcentajes' && claseSeleccionada && (
           <CuadroPorcentajes 
             estudiantes={estudiantes} 
-            calcularPromedioFinal={calcularPromedioFinal} 
+            calcularPromedioFinal={calcularPromedioFinal}
+            claseSeleccionada={claseSeleccionada}
           />
         )}
 
