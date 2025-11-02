@@ -135,7 +135,7 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   );
 };
 
-// Componente para Fila de Calificaciones Rápidas MEJORADO con Título de Evaluación
+// Componente para Fila de Calificaciones Rápidas CORREGIDO
 const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcularPromedioFinal, claseSeleccionada, usuario, actualizarCalificacion, tituloEvaluacion }) => {
   const [calificacionDiaria, setCalificacionDiaria] = useState('');
   const [calificacionApreciacion, setCalificacionApreciacion] = useState('');
@@ -178,13 +178,13 @@ const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcular
 *Trimestre:* ${detectarTrimestre()}
 
 *📝 CALIFICACIONES DIARIAS:*
-${formatoCalificaciones(estudiante.calificacionesDiarias)}
+${formatoCalificaciones(estudiante.calificacionesDiarias || [])}
 
 *⭐ APRECIACIÓN:*
-${formatoCalificaciones(estudiante.apreciacion)}
+${formatoCalificaciones(estudiante.apreciacion || [])}
 
 *📋 EXAMEN:*
-${formatoCalificaciones(estudiante.examen)}
+${formatoCalificaciones(estudiante.examen || [])}
 
 *🏆 PROMEDIO FINAL:* ${calcularPromedioFinal(estudiante)}/5.0
 
@@ -686,7 +686,7 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
   );
 };
 
-// Componente para Cuadro de Porcentajes FUNCIONAL
+// Componente para Cuadro de Porcentajes CORREGIDO
 const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSeleccionada }) => {
   const calcularEstadisticas = () => {
     const anoActual = new Date().getFullYear();
@@ -721,13 +721,17 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
     // Fracasados a la fecha (estudiantes con al menos una nota pero promedio bajo 3.0)
     const fracasadosFecha = estudiantesActivos.filter(e => {
       const promedio = parseFloat(calcularPromedioFinal(e));
-      const tieneNotas = e.calificacionesDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0;
+      const tieneNotas = (e.calificacionesDiarias && e.calificacionesDiarias.length > 0) || 
+                        (e.apreciacion && e.apreciacion.length > 0) || 
+                        (e.examen && e.examen.length > 0);
       return promedio < 3.0 && tieneNotas;
     });
 
     // Sin calificaciones (estudiantes sin ninguna nota registrada)
     const sinCalificaciones = estudiantesActivos.filter(e => {
-      return e.calificacionesDiarias.length === 0 && e.apreciacion.length === 0 && e.examen.length === 0;
+      return (!e.calificacionesDiarias || e.calificacionesDiarias.length === 0) && 
+             (!e.apreciacion || e.apreciacion.length === 0) && 
+             (!e.examen || e.examen.length === 0);
     });
 
     const retirados = estudiantes.filter(e => e.retirado).length;
@@ -778,10 +782,12 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
               estado: parseFloat(calcularPromedioFinal(e)) >= 3.0 ? 'Aprobado' : 
                      parseFloat(calcularPromedioFinal(e)) > 0 ? 'Fracasado' : 'Sin calificaciones',
               retirado: e.retirado,
-              tieneNotas: e.calificacionesDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0,
-              calificacionesDiarias: e.calificacionesDiarias.length,
-              apreciacion: e.apreciacion.length,
-              examen: e.examen.length
+              tieneNotas: (e.calificacionesDiarias && e.calificacionesDiarias.length > 0) || 
+                         (e.apreciacion && e.apreciacion.length > 0) || 
+                         (e.examen && e.examen.length > 0),
+              calificacionesDiarias: e.calificacionesDiarias ? e.calificacionesDiarias.length : 0,
+              apreciacion: e.apreciacion ? e.apreciacion.length : 0,
+              examen: e.examen ? e.examen.length : 0
             }))
           })}
           nombreArchivo={`Cuadro_Porcentajes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`}
@@ -901,22 +907,27 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
   );
 };
 
-// ✅ FUNCIONES DE EXPORTACIÓN MEJORADAS - CON FORMATO Y ORDEN
+// ✅ FUNCIONES DE EXPORTACIÓN CORREGIDAS - SIN ERRORES DE PROPIEDADES
 
-// Utilidades comunes
+// Utilidades comunes CORREGIDAS
 const normalizarDatos = (datosIn) => {
   try {
-    if (typeof datosIn === 'string') return JSON.parse(datosIn);
-    return datosIn ?? {};
-  } catch {
-    return datosIn;
+    if (!datosIn) return {};
+    if (typeof datosIn === 'string') {
+      return JSON.parse(datosIn);
+    }
+    return datosIn || {};
+  } catch (error) {
+    console.error('Error normalizando datos:', error);
+    return {};
   }
 };
 
 const objetoATabla = (obj) => {
+  if (!obj || typeof obj !== 'object') return [];
   return Object.entries(obj).map(([key, value]) => ({
     Campo: key,
-    Valor: typeof value === 'object' ? JSON.stringify(value) : String(value),
+    Valor: typeof value === 'object' ? JSON.stringify(value) : String(value || ''),
   }));
 };
 
@@ -931,9 +942,9 @@ const descargarBlob = (blob, nombreArchivo) => {
   URL.revokeObjectURL(url);
 };
 
-// Función auxiliar para calcular promedios
+// Función auxiliar para calcular promedios CORREGIDA
 const calcularTotalSeccionExport = (notas) => {
-  if (!notas || notas.length === 0) return '0.00';
+  if (!notas || !Array.isArray(notas) || notas.length === 0) return '0.00';
   const numeros = notas.map(n => {
     const valor = typeof n === 'object' ? parseFloat(n.valor) : parseFloat(n);
     return isNaN(valor) ? 0 : valor;
@@ -942,7 +953,7 @@ const calcularTotalSeccionExport = (notas) => {
   return (numeros.reduce((a, b) => a + b, 0) / numeros.length).toFixed(2);
 };
 
-// Función auxiliar para contar asistencias
+// Función auxiliar para contar asistencias CORREGIDA
 const contarAsistenciasExport = (estudiante) => {
   const registros = estudiante.asistencia || {};
   const presente = Object.values(registros).filter(v => v === 'presente').length;
@@ -953,7 +964,7 @@ const contarAsistenciasExport = (estudiante) => {
   return { presente, ausente, tardanza, fuga, ausenciaJustificada };
 };
 
-// Exportar a Excel MEJORADO - CON ORDEN Y ESTRUCTURA
+// Exportar a Excel CORREGIDO - SIN ERRORES
 const exportarAExcel = (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
@@ -966,14 +977,14 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         ['REPORTE DE CALIFICACIONES - BRINGO EDU'],
         [''],
         ['Información General'],
-        [`Clase: ${datos.clase}`],
-        [`Profesor: ${datos.profesor}`],
-        [`Institución: ${datos.institucion}`],
-        [`Fecha: ${datos.fecha}`],
+        [`Clase: ${datos.clase || ''}`],
+        [`Profesor: ${datos.profesor || ''}`],
+        [`Institución: ${datos.institucion || ''}`],
+        [`Fecha: ${datos.fecha || ''}`],
         [`Trimestre: ${detectarTrimestre()}`],
-        [`Promedio General: ${datos.promedioGeneral}/5.0`],
-        [`Total Estudiantes: ${datos.totalEstudiantes}`],
-        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
+        [`Promedio General: ${datos.promedioGeneral || '0'}/5.0`],
+        [`Total Estudiantes: ${datos.totalEstudiantes || 0}`],
+        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo || 0}`],
         [''],
         ['Distribución de Rendimiento'],
         [`Excelente (4.5-5.0): ${datos.distribucion?.excelente || 0}`],
@@ -999,15 +1010,15 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         'Estado'
       ];
       
-      const calificacionesData = datos.estudiantes.map(estudiante => [
-        estudiante.nombre,
+      const calificacionesData = (datos.estudiantes || []).map(estudiante => [
+        estudiante.nombre || '',
         parseFloat(estudiante.promedioFinal || 0),
         parseFloat(calcularTotalSeccionExport(estudiante.calificacionesDiarias) || 0),
-        estudiante.calificacionesDiarias?.length || 0,
+        (estudiante.calificacionesDiarias && estudiante.calificacionesDiarias.length) || 0,
         parseFloat(calcularTotalSeccionExport(estudiante.apreciacion) || 0),
-        estudiante.apreciacion?.length || 0,
+        (estudiante.apreciacion && estudiante.apreciacion.length) || 0,
         parseFloat(calcularTotalSeccionExport(estudiante.examen) || 0),
-        estudiante.examen?.length || 0,
+        (estudiante.examen && estudiante.examen.length) || 0,
         parseFloat(estudiante.promedioFinal || 0) >= 3.5 ? 'Satisfactorio' : 
         parseFloat(estudiante.promedioFinal || 0) >= 3.0 ? 'Regular' : 'En Riesgo'
       ]);
@@ -1019,11 +1030,13 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       const detalleHeaders = ['Estudiante', 'Tipo Calificación', 'Valor', 'Fecha', 'Título Evaluación'];
       const detalleData = [];
       
-      datos.estudiantes.forEach(estudiante => {
+      (datos.estudiantes || []).forEach(estudiante => {
+        const nombre = estudiante.nombre || '';
+        
         // Calificaciones diarias
-        estudiante.calificacionesDiarias?.forEach(calificacion => {
+        (estudiante.calificacionesDiarias || []).forEach(calificacion => {
           detalleData.push([
-            estudiante.nombre,
+            nombre,
             'Calificación Diaria',
             parseFloat(calificacion.valor || 0),
             calificacion.fecha || 'Sin fecha',
@@ -1032,9 +1045,9 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         });
         
         // Apreciación
-        estudiante.apreciacion?.forEach(calificacion => {
+        (estudiante.apreciacion || []).forEach(calificacion => {
           detalleData.push([
-            estudiante.nombre,
+            nombre,
             'Apreciación',
             parseFloat(calificacion.valor || 0),
             calificacion.fecha || 'Sin fecha',
@@ -1043,9 +1056,9 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         });
         
         // Examen
-        estudiante.examen?.forEach(calificacion => {
+        (estudiante.examen || []).forEach(calificacion => {
           detalleData.push([
-            estudiante.nombre,
+            nombre,
             'Examen',
             parseFloat(calificacion.valor || 0),
             calificacion.fecha || 'Sin fecha',
@@ -1074,7 +1087,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       ];
       
       const asistenciaData = [];
-      datos.estudiantes?.forEach(estudiante => {
+      (datos.estudiantes || []).forEach(estudiante => {
         const asistencia = contarAsistenciasExport(estudiante);
         const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente + asistencia.fuga + asistencia.ausenciaJustificada;
         const porcentajeAsistencia = totalAsistencias > 0 ? 
@@ -1082,7 +1095,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         
         // Resumen por estudiante
         asistenciaData.push([
-          estudiante.nombre,
+          estudiante.nombre || '',
           'RESUMEN',
           '-',
           asistencia.presente,
@@ -1096,7 +1109,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         // Detalle por fecha
         Object.entries(estudiante.asistencia || {}).forEach(([fecha, estado]) => {
           asistenciaData.push([
-            estudiante.nombre,
+            estudiante.nombre || '',
             fecha,
             estado,
             '-', '-', '-', '-', '-', '-'
@@ -1113,14 +1126,14 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         ['TABLERO DE PROGRESO - BRINGO EDU'],
         [''],
         ['ESTADÍSTICAS GENERALES'],
-        [`Clase: ${datos.clase}`],
-        [`Profesor: ${datos.profesor}`],
-        [`Institución: ${datos.institucion}`],
-        [`Fecha: ${datos.fecha}`],
+        [`Clase: ${datos.clase || ''}`],
+        [`Profesor: ${datos.profesor || ''}`],
+        [`Institución: ${datos.institucion || ''}`],
+        [`Fecha: ${datos.fecha || ''}`],
         [`Trimestre: ${detectarTrimestre()}`],
-        [`Promedio General: ${datos.promedioGeneral}/5.0`],
-        [`Total Estudiantes: ${datos.totalEstudiantes}`],
-        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
+        [`Promedio General: ${datos.promedioGeneral || '0'}/5.0`],
+        [`Total Estudiantes: ${datos.totalEstudiantes || 0}`],
+        [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo || 0}`],
         [''],
         ['DISTRIBUCIÓN DE RENDIMIENTO'],
         [`Excelente (4.5-5.0): ${datos.distribucion?.excelente || 0} estudiantes`],
@@ -1134,11 +1147,11 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       XLSX.utils.book_append_sheet(workbook, wsProgreso, 'Progreso General');
 
       // Hoja de ranking
-      if (datos.ranking && datos.ranking.length > 0) {
+      if (datos.ranking && Array.isArray(datos.ranking) && datos.ranking.length > 0) {
         const rankingHeaders = ['Posición', 'Estudiante', 'Promedio', 'Estado'];
         const rankingData = datos.ranking.map((est, index) => [
           index + 1,
-          est.nombre,
+          est.nombre || '',
           parseFloat(est.promedio || 0),
           parseFloat(est.promedio || 0) >= 4.5 ? 'Excelente' :
           parseFloat(est.promedio || 0) >= 3.5 ? 'Bueno' :
@@ -1155,20 +1168,20 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         ['CUADRO DE PORCENTAJES ACADÉMICOS - BRINGO EDU'],
         [''],
         ['INFORMACIÓN GENERAL'],
-        [`Clase: ${datos.clase}`],
-        [`Profesor: ${datos.profesor}`],
-        [`Institución: ${datos.institucion}`],
-        [`Fecha: ${datos.fecha}`],
+        [`Clase: ${datos.clase || ''}`],
+        [`Profesor: ${datos.profesor || ''}`],
+        [`Institución: ${datos.institucion || ''}`],
+        [`Fecha: ${datos.fecha || ''}`],
         [`Trimestre: ${detectarTrimestre()}`],
-        [`Año Lectivo: ${datos.anoLectivo}`],
-        [`Total Estudiantes Activos: ${datos.totalEstudiantes}`],
-        [`Estudiantes Retirados: ${datos.estudiantesRetirados}`],
+        [`Año Lectivo: ${datos.anoLectivo || ''}`],
+        [`Total Estudiantes Activos: ${datos.totalEstudiantes || 0}`],
+        [`Estudiantes Retirados: ${datos.estudiantesRetirados || 0}`],
         [''],
         ['ESTADÍSTICAS ACADÉMICAS'],
-        [`Aprobados: ${datos.estadisticas.aprobados.total} (${datos.estadisticas.aprobados.porcentaje}%)`],
-        [`Fracasados: ${datos.estadisticas.fracasados.total} (${datos.estadisticas.fracasados.porcentaje}%)`],
-        [`Fracasados a la Fecha: ${datos.estadisticas.fracasadosFecha.total} (${datos.estadisticas.fracasadosFecha.porcentaje}%)`],
-        [`Sin Calificaciones: ${datos.estadisticas.sinCalificaciones}`],
+        [`Aprobados: ${datos.estadisticas?.aprobados?.total || 0} (${datos.estadisticas?.aprobados?.porcentaje || 0}%)`],
+        [`Fracasados: ${datos.estadisticas?.fracasados?.total || 0} (${datos.estadisticas?.fracasados?.porcentaje || 0}%)`],
+        [`Fracasados a la Fecha: ${datos.estadisticas?.fracasadosFecha?.total || 0} (${datos.estadisticas?.fracasadosFecha?.porcentaje || 0}%)`],
+        [`Sin Calificaciones: ${datos.estadisticas?.sinCalificaciones || 0}`],
         ['']
       ];
 
@@ -1177,15 +1190,15 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
 
       // Hoja de detalle por estudiante
       const detalleHeaders = ['Estudiante', 'Promedio', 'Estado', 'Retirado', 'Tiene Calificaciones', 'Calificaciones Diarias', 'Apreciación', 'Examen'];
-      const detalleData = datos.estudiantes.map(estudiante => [
-        estudiante.nombre,
+      const detalleData = (datos.estudiantes || []).map(estudiante => [
+        estudiante.nombre || '',
         parseFloat(estudiante.promedio || 0),
-        estudiante.estado,
+        estudiante.estado || '',
         estudiante.retirado ? 'Sí' : 'No',
         estudiante.tieneCalificaciones ? 'Sí' : 'No',
-        estudiante.calificacionesDiarias,
-        estudiante.apreciacion,
-        estudiante.examen
+        estudiante.calificacionesDiarias || 0,
+        estudiante.apreciacion || 0,
+        estudiante.examen || 0
       ]);
 
       const wsDetalle = XLSX.utils.aoa_to_sheet([detalleHeaders, ...detalleData]);
@@ -1200,8 +1213,8 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         'Fecha Evaluación'
       ];
       
-      const habitosData = datos.estudiantes?.map(estudiante => [
-        estudiante.nombre,
+      const habitosData = (datos.estudiantes || []).map(estudiante => [
+        estudiante.nombre || '',
         estudiante.habitosAptitudes || 'No evaluado',
         detectarTrimestre(),
         new Date().toLocaleDateString('es-PA')
@@ -1218,13 +1231,13 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       } else if (typeof datos === 'object' && datos) {
         worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
       } else {
-        worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
+        worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos || '') }]);
       }
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
     }
 
     XLSX.writeFile(workbook, `${nombreArchivo}.xlsx`);
-    console.log('✅ Archivo Excel generado exitosamente con estructura organizada');
+    console.log('✅ Archivo Excel generado exitosamente');
     
   } catch (error) {
     console.error('❌ Error al exportar a Excel:', error);
@@ -1232,7 +1245,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
   }
 };
 
-// Exportar a Word MEJORADO - CON FORMATO BONITO
+// Exportar a Word CORREGIDO - SIN ERRORES
 const exportarAWord = async (datosIn, nombreArchivo) => {
   try {
     const datos = normalizarDatos(datosIn);
@@ -1403,7 +1416,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
       }
 
       // Tabla de estudiantes con formato atractivo
-      if (datos.estudiantes && datos.estudiantes.length > 0) {
+      if (datos.estudiantes && Array.isArray(datos.estudiantes) && datos.estudiantes.length > 0) {
         children.push(
           new Paragraph({
             children: [
@@ -1480,7 +1493,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               children: [
                 new TableCell({
                   children: [new Paragraph({ 
-                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    children: [new TextRun({ text: estudiante.nombre || '', size: 20 })],
                     alignment: AlignmentType.LEFT
                   })],
                   shading: { fill: 'F7FAFC' }
@@ -1587,7 +1600,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
       );
 
       // Tabla de asistencia
-      if (datos.estudiantes && datos.estudiantes.length > 0) {
+      if (datos.estudiantes && Array.isArray(datos.estudiantes) && datos.estudiantes.length > 0) {
         const tableRows = [
           new TableRow({
             children: [
@@ -1654,7 +1667,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               children: [
                 new TableCell({
                   children: [new Paragraph({ 
-                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    children: [new TextRun({ text: estudiante.nombre || '', size: 20 })],
                     alignment: AlignmentType.LEFT
                   })],
                   shading: { fill: 'F7FAFC' }
@@ -1795,7 +1808,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
       );
 
       // Tabla de hábitos y aptitudes
-      if (datos.estudiantes && datos.estudiantes.length > 0) {
+      if (datos.estudiantes && Array.isArray(datos.estudiantes) && datos.estudiantes.length > 0) {
         const tableRows = [
           new TableRow({
             children: [
@@ -1829,7 +1842,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               children: [
                 new TableCell({
                   children: [new Paragraph({ 
-                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    children: [new TextRun({ text: estudiante.nombre || '', size: 20 })],
                     alignment: AlignmentType.LEFT
                   })],
                   shading: { fill: 'F7FAFC' }
@@ -1946,7 +1959,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: String(datos.estadisticas.aprobados.total), 
+                  text: String(datos.estadisticas?.aprobados?.total || 0), 
                   size: 20,
                   color: '38A169'
                 })],
@@ -1957,7 +1970,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: `${datos.estadisticas.aprobados.porcentaje}%`, 
+                  text: `${datos.estadisticas?.aprobados?.porcentaje || 0}%`, 
                   size: 20,
                   color: '38A169'
                 })],
@@ -1979,7 +1992,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: String(datos.estadisticas.fracasados.total), 
+                  text: String(datos.estadisticas?.fracasados?.total || 0), 
                   size: 20,
                   color: 'E53E3E'
                 })],
@@ -1990,7 +2003,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: `${datos.estadisticas.fracasados.porcentaje}%`, 
+                  text: `${datos.estadisticas?.fracasados?.porcentaje || 0}%`, 
                   size: 20,
                   color: 'E53E3E'
                 })],
@@ -2012,7 +2025,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: String(datos.estadisticas.fracasadosFecha.total), 
+                  text: String(datos.estadisticas?.fracasadosFecha?.total || 0), 
                   size: 20,
                   color: 'DD6B20'
                 })],
@@ -2023,7 +2036,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: `${datos.estadisticas.fracasadosFecha.porcentaje}%`, 
+                  text: `${datos.estadisticas?.fracasadosFecha?.porcentaje || 0}%`, 
                   size: 20,
                   color: 'DD6B20'
                 })],
@@ -2045,7 +2058,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: String(datos.estadisticas.sinCalificaciones), 
+                  text: String(datos.estadisticas?.sinCalificaciones || 0), 
                   size: 20,
                   color: 'D69E2E'
                 })],
@@ -2078,7 +2091,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
             new TableCell({
               children: [new Paragraph({ 
                 children: [new TextRun({ 
-                  text: String(datos.estadisticas.retirados), 
+                  text: String(datos.estadisticas?.retirados || 0), 
                   size: 20,
                   color: '4A5568'
                 })],
@@ -2142,7 +2155,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    console.log('✅ Archivo Word generado exitosamente con formato atractivo');
+    console.log('✅ Archivo Word generado exitosamente');
     
   } catch (error) {
     console.error('❌ Error al exportar a Word:', error);
@@ -2150,7 +2163,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
   }
 };
 
-// Generar Blob por formato (útil también para Google Drive) - CORREGIDO
+// Generar Blob por formato CORREGIDO
 const generarBlobPorFormato = async (datosIn, formato) => {
   const datos = normalizarDatos(datosIn);
   console.log(`📊 Generando blob para formato: ${formato}`, datos);
@@ -2164,7 +2177,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
     } else if (typeof datos === 'object' && datos !== null) {
       worksheet = XLSX.utils.json_to_sheet(objetoATabla(datos));
     } else {
-      worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos) }]);
+      worksheet = XLSX.utils.json_to_sheet([{ Valor: String(datos || '') }]);
     }
     
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Datos');
@@ -2212,7 +2225,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
             new TableRow({
               children: headers.map((k) =>
                 new TableCell({
-                  children: [new Paragraph({ children: [new TextRun({ text: typeof row[k] === 'object' ? JSON.stringify(row[k]) : String(row[k] ?? '') })] })],
+                  children: [new Paragraph({ children: [new TextRun({ text: typeof row[k] === 'object' ? JSON.stringify(row[k]) : String(row[k] || '') })] })],
                 })
               ),
             })
@@ -2228,14 +2241,14 @@ const generarBlobPorFormato = async (datosIn, formato) => {
           new Paragraph({
             children: [
               new TextRun({ text: `${key}: `, bold: true, size: 20 }),
-              new TextRun({ text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? ''), size: 20 }),
+              new TextRun({ text: typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value || ''), size: 20 }),
             ],
             spacing: { after: 200 },
           })
         );
       });
     } else {
-      children.push(new Paragraph({ children: [new TextRun({ text: String(datos ?? ''), size: 20 })] }));
+      children.push(new Paragraph({ children: [new TextRun({ text: String(datos || ''), size: 20 })] }));
     }
 
     const docx = new Document({ sections: [{ properties: {}, children }] });
@@ -2250,7 +2263,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
   throw new Error(`Formato no soportado: ${formato}`);
 };
 
-// Subir a Google Drive (REAL con backend) - MEJORADO
+// Subir a Google Drive CORREGIDO
 const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') => {
   try {
     console.log('🔄 Iniciando subida a Google Drive...', { nombreArchivoBase, formato });
@@ -2334,7 +2347,7 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') 
   }
 };
 
-// Componente OpcionesExportacion mejorado
+// Componente OpcionesExportacion CORREGIDO
 function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
   const [mostrarOpciones, setMostrarOpciones] = useState(false);
   const [mostrarDrive, setMostrarDrive] = useState(false);
@@ -2483,7 +2496,7 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
   );
 }
 
-// NUEVO COMPONENTE: Hábitos y Aptitudes
+// NUEVO COMPONENTE: Hábitos y Aptitudes CORREGIDO
 const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos }) => {
   const [habitosEstudiantes, setHabitosEstudiantes] = useState({});
 
@@ -3202,7 +3215,7 @@ export default function AsistenteProfesor() {
     }
   };
 
-  // FUNCIÓN CORREGIDA: Agregar calificación - AHORA CON TÍTULO DE EVALUACIÓN
+  // FUNCIÓN CORREGIDA: Agregar calificación - CON VALIDACIONES
   const agregarCalificacion = async (estudianteId, seccion, valor = '', fecha = new Date().toISOString().split('T')[0], titulo = tituloEvaluacion) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
@@ -3212,9 +3225,12 @@ export default function AsistenteProfesor() {
             fecha: fecha,
             titulo: titulo || 'Sin título'
           };
+          
+          // Asegurarse de que la sección existe
+          const seccionActual = e[seccion] || [];
           return {
             ...e,
-            [seccion]: [...e[seccion], nuevaCalificacion]
+            [seccion]: [...seccionActual, nuevaCalificacion]
           };
         }
         return e;
@@ -3243,8 +3259,11 @@ export default function AsistenteProfesor() {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
-          const nuevasCalificaciones = [...e[seccion]];
-          nuevasCalificaciones[indice] = { ...nuevasCalificaciones[indice], [campo]: valor };
+          const seccionActual = e[seccion] || [];
+          const nuevasCalificaciones = [...seccionActual];
+          if (nuevasCalificaciones[indice]) {
+            nuevasCalificaciones[indice] = { ...nuevasCalificaciones[indice], [campo]: valor };
+          }
           return {
             ...e,
             [seccion]: nuevasCalificaciones
@@ -3275,7 +3294,8 @@ export default function AsistenteProfesor() {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
-          const nuevasCalificaciones = e[seccion].filter((_, i) => i !== indice);
+          const seccionActual = e[seccion] || [];
+          const nuevasCalificaciones = seccionActual.filter((_, i) => i !== indice);
           return {
             ...e,
             [seccion]: nuevasCalificaciones
@@ -3357,6 +3377,7 @@ export default function AsistenteProfesor() {
     }
   };
 
+  // FUNCIÓN CORREGIDA: Contar asistencias con validaciones
   const contarAsistencias = (estudiante) => {
     const registros = estudiante.asistencia || {};
     const presente = Object.values(registros).filter(v => v === 'presente').length;
@@ -3367,8 +3388,9 @@ export default function AsistenteProfesor() {
     return { presente, ausente, tardanza, fuga, ausenciaJustificada };
   };
 
+  // FUNCIÓN CORREGIDA: Calcular total de sección con validaciones
   const calcularTotalSeccion = (calificaciones) => {
-    if (!calificaciones || calificaciones.length === 0) return 0;
+    if (!calificaciones || !Array.isArray(calificaciones) || calificaciones.length === 0) return 0;
     const numeros = calificaciones.map(n => {
       const valor = typeof n === 'object' ? parseFloat(n.valor) : parseFloat(n);
       return isNaN(valor) ? 0 : valor;
@@ -3377,10 +3399,16 @@ export default function AsistenteProfesor() {
     return (numeros.reduce((a, b) => a + b, 0) / numeros.length).toFixed(2);
   };
 
+  // FUNCIÓN CORREGIDA: Calcular promedio final con validaciones
   const calcularPromedioFinal = (estudiante) => {
-    const totalDiarias = parseFloat(calcularTotalSeccion(estudiante.calificacionesDiarias));
-    const totalApreciacion = parseFloat(calcularTotalSeccion(estudiante.apreciacion));
-    const totalExamen = parseFloat(calcularTotalSeccion(estudiante.examen));
+    // Asegurarse de que las propiedades existen
+    const calificacionesDiarias = estudiante.calificacionesDiarias || [];
+    const apreciacion = estudiante.apreciacion || [];
+    const examen = estudiante.examen || [];
+    
+    const totalDiarias = parseFloat(calcularTotalSeccion(calificacionesDiarias)) || 0;
+    const totalApreciacion = parseFloat(calcularTotalSeccion(apreciacion)) || 0;
+    const totalExamen = parseFloat(calcularTotalSeccion(examen)) || 0;
     
     const totales = [totalDiarias, totalApreciacion, totalExamen].filter(t => t > 0);
     if (totales.length === 0) return 0;
@@ -3395,7 +3423,7 @@ export default function AsistenteProfesor() {
     }));
   };
 
-  // FUNCIÓN CORREGIDA: Buscar y redirigir estudiante - AHORA EN HOME
+  // FUNCIÓN CORREGIDA: Buscar y redirigir estudiante
   const buscarYRedirigirEstudiante = (estudiante) => {
     // Si estamos en home, vamos a calificaciones
     if (view === 'home') {
@@ -3426,13 +3454,14 @@ export default function AsistenteProfesor() {
 
   const estudiantesEnRiesgo = estudiantes.filter(e => parseFloat(calcularPromedioFinal(e)) < 3.0 && parseFloat(calcularPromedioFinal(e)) > 0);
 
+  // FUNCIÓN CORREGIDA: Promedio general con validaciones
   const promedioGeneral = () => {
     const promedios = estudiantes.map(e => parseFloat(calcularPromedioFinal(e))).filter(p => p > 0);
     if (promedios.length === 0) return 0;
     return (promedios.reduce((a, b) => a + b, 0) / promedios.length).toFixed(1);
   };
 
-  // FUNCIONES PARA LA VISTA DE PROGRESO
+  // FUNCIONES PARA LA VISTA DE PROGRESO CORREGIDAS
   const obtenerRankingEstudiantes = () => {
     return estudiantes
       .map(estudiante => ({
@@ -3444,7 +3473,7 @@ export default function AsistenteProfesor() {
       .slice(0, 5); // Top 5
   };
 
-  // FUNCIÓN MEJORADA: Exportar datos de progreso
+  // FUNCIÓN CORREGIDA: Exportar datos de progreso
   const exportarProgreso = (formato) => {
     const datosProgreso = {
       tipo: 'progreso',
@@ -3460,11 +3489,11 @@ export default function AsistenteProfesor() {
       distribucion: calcularDistribucionNotas(),
       estudiantes: estudiantes.map(e => ({
         nombre: e.nombre,
-        calificacionesDiarias: e.calificacionesDiarias,
-        apreciacion: e.apreciacion,
-        examen: e.examen,
+        calificacionesDiarias: e.calificacionesDiarias || [],
+        apreciacion: e.apreciacion || [],
+        examen: e.examen || [],
         promedioFinal: calcularPromedioFinal(e),
-        asistencia: e.asistencia,
+        asistencia: e.asistencia || {},
         habitosAptitudes: e.habitosAptitudes || 'No evaluado'
       }))
     };
@@ -3486,6 +3515,7 @@ export default function AsistenteProfesor() {
     }
   };
 
+  // FUNCIÓN CORREGIDA: Calcular distribución de notas
   const calcularDistribucionNotas = () => {
     const distribucion = {
       excelente: 0, // 4.5 - 5.0
@@ -3923,7 +3953,7 @@ export default function AsistenteProfesor() {
                     trimestre: detectarTrimestre(),
                     estudiantes: estudiantes.map(e => ({
                       nombre: e.nombre,
-                      asistencia: e.asistencia,
+                      asistencia: e.asistencia || {},
                       ...contarAsistencias(e)
                     }))
                   })}
@@ -4044,9 +4074,9 @@ export default function AsistenteProfesor() {
                     distribucion: calcularDistribucionNotas(),
                     estudiantes: estudiantes.map(e => ({
                       nombre: e.nombre,
-                      calificacionesDiarias: e.calificacionesDiarias,
-                      apreciacion: e.apreciacion,
-                      examen: e.examen,
+                      calificacionesDiarias: e.calificacionesDiarias || [],
+                      apreciacion: e.apreciacion || [],
+                      examen: e.examen || [],
                       promedioFinal: calcularPromedioFinal(e)
                     }))
                   })}
@@ -4192,7 +4222,7 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.calificacionesDiarias.map((calificacion, idx) => (
+                          {(estudiante.calificacionesDiarias || []).map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
@@ -4244,7 +4274,7 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.apreciacion.map((calificacion, idx) => (
+                          {(estudiante.apreciacion || []).map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
@@ -4296,7 +4326,7 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.examen.map((calificacion, idx) => (
+                          {(estudiante.examen || []).map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
@@ -4384,11 +4414,11 @@ export default function AsistenteProfesor() {
                   distribucion: calcularDistribucionNotas(),
                   estudiantes: estudiantes.map(e => ({
                     nombre: e.nombre,
-                    calificacionesDiarias: e.calificacionesDiarias,
-                    apreciacion: e.apreciacion,
-                    examen: e.examen,
+                    calificacionesDiarias: e.calificacionesDiarias || [],
+                    apreciacion: e.apreciacion || [],
+                    examen: e.examen || [],
                     promedioFinal: calcularPromedioFinal(e),
-                    asistencia: e.asistencia,
+                    asistencia: e.asistencia || {},
                     habitosAptitudes: e.habitosAptitudes || 'No evaluado'
                   }))
                 })}
@@ -4458,7 +4488,7 @@ export default function AsistenteProfesor() {
                         <div>
                           <p className="font-semibold text-gray-800">{estudiante.nombre}</p>
                           <p className="text-sm text-gray-600">
-                            {estudiante.calificacionesDiarias.length + estudiante.apreciacion.length + estudiante.examen.length} calificaciones
+                            {(estudiante.calificacionesDiarias?.length || 0) + (estudiante.apreciacion?.length || 0) + (estudiante.examen?.length || 0)} calificaciones
                           </p>
                         </div>
                       </div>
@@ -4505,7 +4535,7 @@ export default function AsistenteProfesor() {
                         </div>
                         <div className="text-sm text-gray-600">
                           <p>Asistencia: {asistencia.presente}P {asistencia.tardanza}T {asistencia.ausente}A</p>
-                          <p>Total calificaciones: {estudiante.calificacionesDiarias.length + estudiante.apreciacion.length + estudiante.examen.length}</p>
+                          <p>Total calificaciones: {(estudiante.calificacionesDiarias?.length || 0) + (estudiante.apreciacion?.length || 0) + (estudiante.examen?.length || 0)}</p>
                         </div>
                       </div>
                     );
@@ -4564,13 +4594,13 @@ export default function AsistenteProfesor() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
-                            {calcularTotalSeccion(estudiante.calificacionesDiarias)} ({estudiante.calificacionesDiarias.length})
+                            {calcularTotalSeccion(estudiante.calificacionesDiarias)} ({estudiante.calificacionesDiarias?.length || 0})
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
-                            {calcularTotalSeccion(estudiante.apreciacion)} ({estudiante.apreciacion.length})
+                            {calcularTotalSeccion(estudiante.apreciacion)} ({estudiante.apreciacion?.length || 0})
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
-                            {calcularTotalSeccion(estudiante.examen)} ({estudiante.examen.length})
+                            {calcularTotalSeccion(estudiante.examen)} ({estudiante.examen?.length || 0})
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className={`font-semibold ${
