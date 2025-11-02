@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX, BookOpen, Activity } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -22,6 +22,37 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// FUNCIÓN PARA DETECTAR TRIMESTRE AUTOMÁTICAMENTE
+const detectarTrimestre = () => {
+  const hoy = new Date();
+  const año = hoy.getFullYear();
+  
+  // Calendario escolar de Panamá (ajustable)
+  const trimestres = [
+    { 
+      nombre: 'Primer Trimestre', 
+      inicio: new Date(año, 2, 1), // 1 de Marzo
+      fin: new Date(año, 4, 31)    // 31 de Mayo
+    },
+    { 
+      nombre: 'Segundo Trimestre', 
+      inicio: new Date(año, 5, 1),  // 1 de Junio
+      fin: new Date(año, 7, 31)     // 31 de Agosto
+    },
+    { 
+      nombre: 'Tercer Trimestre', 
+      inicio: new Date(año, 8, 1),  // 1 de Septiembre
+      fin: new Date(año, 10, 30)    // 30 de Noviembre
+    }
+  ];
+
+  const trimestreActual = trimestres.find(t => 
+    hoy >= t.inicio && hoy <= t.fin
+  );
+
+  return trimestreActual ? trimestreActual.nombre : 'Vacaciones';
+};
 
 // Componente para gráfico de distribución
 const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
@@ -104,55 +135,56 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   );
 };
 
-// Componente para Fila de Notas Rápidas
-const FilaNotasRapidas = ({ estudiante, onAgregarNota, calcularPromedioFinal, claseSeleccionada, usuario, actualizarNota }) => {
-  const [notaDiaria, setNotaDiaria] = useState('');
-  const [notaApreciacion, setNotaApreciacion] = useState('');
-  const [notaExamen, setNotaExamen] = useState('');
+// Componente para Fila de Calificaciones Rápidas MEJORADO con Título de Evaluación
+const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcularPromedioFinal, claseSeleccionada, usuario, actualizarCalificacion, tituloEvaluacion }) => {
+  const [calificacionDiaria, setCalificacionDiaria] = useState('');
+  const [calificacionApreciacion, setCalificacionApreciacion] = useState('');
+  const [calificacionExamen, setCalificacionExamen] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
 
-  const handleAgregarNota = async (tipo, valor) => {
+  const handleAgregarCalificacion = async (tipo, valor) => {
     if (valor && parseFloat(valor) >= 0 && parseFloat(valor) <= 5) {
       try {
-        await onAgregarNota(estudiante.id, tipo, parseFloat(valor), fecha);
+        await onAgregarCalificacion(estudiante.id, tipo, parseFloat(valor), fecha, tituloEvaluacion);
         
         // Limpiar el campo
-        if (tipo === 'notasDiarias') setNotaDiaria('');
-        if (tipo === 'apreciacion') setNotaApreciacion('');
-        if (tipo === 'examen') setNotaExamen('');
+        if (tipo === 'calificacionesDiarias') setCalificacionDiaria('');
+        if (tipo === 'apreciacion') setCalificacionApreciacion('');
+        if (tipo === 'examen') setCalificacionExamen('');
 
       } catch (error) {
-        console.error('Error agregando nota:', error);
-        alert('Error al agregar la nota');
+        console.error('Error agregando calificación:', error);
+        alert('Error al agregar la calificación');
       }
     } else {
-      alert('Por favor ingresa una nota válida entre 0 y 5');
+      alert('Por favor ingresa una calificación válida entre 0 y 5');
     }
   };
 
   const compartirPorWhatsApp = () => {
-    const formatoNotas = (notas) => {
-      return notas
+    const formatoCalificaciones = (calificaciones) => {
+      return calificaciones
         .filter(n => n.valor && parseFloat(n.valor) > 0)
-        .map(n => `📅 ${n.fecha}: ${n.valor}/5.0`)
-        .join('\n') || '📭 Sin notas registradas';
+        .map(n => `📅 ${n.fecha}: ${n.valor}/5.0${n.titulo ? ` - ${n.titulo}` : ''}`)
+        .join('\n') || '📭 Sin calificaciones registradas';
     };
 
-    const mensaje = `📊 *REPORTE DE NOTAS - ${claseSeleccionada?.nombre}*
+    const mensaje = `📊 REPORTE DE CALIFICACIONES - ${claseSeleccionada?.nombre}
 
 *Estudiante:* ${estudiante.nombre}
 *Profesor:* ${usuario?.nombre}
 *Institución:* ${claseSeleccionada?.institucion || 'Bringo Edu'}
 *Fecha de reporte:* ${new Date().toLocaleDateString('es-PA')}
+*Trimestre:* ${detectarTrimestre()}
 
-*📝 NOTAS DIARIAS:*
-${formatoNotas(estudiante.notasDiarias)}
+*📝 CALIFICACIONES DIARIAS:*
+${formatoCalificaciones(estudiante.calificacionesDiarias)}
 
 *⭐ APRECIACIÓN:*
-${formatoNotas(estudiante.apreciacion)}
+${formatoCalificaciones(estudiante.apreciacion)}
 
 *📋 EXAMEN:*
-${formatoNotas(estudiante.examen)}
+${formatoCalificaciones(estudiante.examen)}
 
 *🏆 PROMEDIO FINAL:* ${calcularPromedioFinal(estudiante)}/5.0
 
@@ -182,12 +214,12 @@ Generado con Bringo Edu 📚 | Transparente y Confiable`;
             min="0"
             max="5"
             placeholder="0-5"
-            value={notaDiaria}
-            onChange={(e) => setNotaDiaria(e.target.value)}
+            value={calificacionDiaria}
+            onChange={(e) => setCalificacionDiaria(e.target.value)}
             className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-center"
           />
           <button
-            onClick={() => handleAgregarNota('notasDiarias', notaDiaria)}
+            onClick={() => handleAgregarCalificacion('calificacionesDiarias', calificacionDiaria)}
             className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
           >
             +
@@ -203,12 +235,12 @@ Generado con Bringo Edu 📚 | Transparente y Confiable`;
             min="0"
             max="5"
             placeholder="0-5"
-            value={notaApreciacion}
-            onChange={(e) => setNotaApreciacion(e.target.value)}
+            value={calificacionApreciacion}
+            onChange={(e) => setCalificacionApreciacion(e.target.value)}
             className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-center"
           />
           <button
-            onClick={() => handleAgregarNota('apreciacion', notaApreciacion)}
+            onClick={() => handleAgregarCalificacion('apreciacion', calificacionApreciacion)}
             className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition text-sm font-semibold"
           >
             +
@@ -224,12 +256,12 @@ Generado con Bringo Edu 📚 | Transparente y Confiable`;
             min="0"
             max="5"
             placeholder="0-5"
-            value={notaExamen}
-            onChange={(e) => setNotaExamen(e.target.value)}
+            value={calificacionExamen}
+            onChange={(e) => setCalificacionExamen(e.target.value)}
             className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-center"
           />
           <button
-            onClick={() => handleAgregarNota('examen', notaExamen)}
+            onClick={() => handleAgregarCalificacion('examen', calificacionExamen)}
             className="bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
           >
             +
@@ -689,13 +721,13 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
     // Fracasados a la fecha (estudiantes con al menos una nota pero promedio bajo 3.0)
     const fracasadosFecha = estudiantesActivos.filter(e => {
       const promedio = parseFloat(calcularPromedioFinal(e));
-      const tieneNotas = e.notasDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0;
+      const tieneNotas = e.calificacionesDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0;
       return promedio < 3.0 && tieneNotas;
     });
 
     // Sin calificaciones (estudiantes sin ninguna nota registrada)
     const sinCalificaciones = estudiantesActivos.filter(e => {
-      return e.notasDiarias.length === 0 && e.apreciacion.length === 0 && e.examen.length === 0;
+      return e.calificacionesDiarias.length === 0 && e.apreciacion.length === 0 && e.examen.length === 0;
     });
 
     const retirados = estudiantes.filter(e => e.retirado).length;
@@ -746,8 +778,8 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
               estado: parseFloat(calcularPromedioFinal(e)) >= 3.0 ? 'Aprobado' : 
                      parseFloat(calcularPromedioFinal(e)) > 0 ? 'Fracasado' : 'Sin calificaciones',
               retirado: e.retirado,
-              tieneNotas: e.notasDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0,
-              notasDiarias: e.notasDiarias.length,
+              tieneNotas: e.calificacionesDiarias.length > 0 || e.apreciacion.length > 0 || e.examen.length > 0,
+              calificacionesDiarias: e.calificacionesDiarias.length,
               apreciacion: e.apreciacion.length,
               examen: e.examen.length
             }))
@@ -916,7 +948,9 @@ const contarAsistenciasExport = (estudiante) => {
   const presente = Object.values(registros).filter(v => v === 'presente').length;
   const ausente = Object.values(registros).filter(v => v === 'ausente').length;
   const tardanza = Object.values(registros).filter(v => v === 'tardanza').length;
-  return { presente, ausente, tardanza };
+  const fuga = Object.values(registros).filter(v => v === 'fuga').length;
+  const ausenciaJustificada = Object.values(registros).filter(v => v === 'ausenciaJustificada').length;
+  return { presente, ausente, tardanza, fuga, ausenciaJustificada };
 };
 
 // Exportar a Excel MEJORADO - CON ORDEN Y ESTRUCTURA
@@ -926,16 +960,17 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
     const workbook = XLSX.utils.book_new();
 
     // Crear múltiples hojas según el tipo de datos
-    if (datos.tipo === 'notas') {
+    if (datos.tipo === 'calificaciones') {
       // Hoja de resumen general
       const resumenData = [
-        ['REPORTE DE NOTAS - BRINGO EDU'],
+        ['REPORTE DE CALIFICACIONES - BRINGO EDU'],
         [''],
         ['Información General'],
         [`Clase: ${datos.clase}`],
         [`Profesor: ${datos.profesor}`],
         [`Institución: ${datos.institucion}`],
         [`Fecha: ${datos.fecha}`],
+        [`Trimestre: ${detectarTrimestre()}`],
         [`Promedio General: ${datos.promedioGeneral}/5.0`],
         [`Total Estudiantes: ${datos.totalEstudiantes}`],
         [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
@@ -951,12 +986,12 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
       XLSX.utils.book_append_sheet(workbook, wsResumen, 'Resumen');
 
-      // Hoja de notas detalladas
-      const notasHeaders = [
+      // Hoja de calificaciones detalladas
+      const calificacionesHeaders = [
         'Estudiante', 
         'Promedio Final', 
-        'Notas Diarias (Promedio)',
-        'Cantidad Notas Diarias',
+        'Calificaciones Diarias (Promedio)',
+        'Cantidad Calificaciones Diarias',
         'Apreciación (Promedio)',
         'Cantidad Apreciación',
         'Examen (Promedio)',
@@ -964,11 +999,11 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         'Estado'
       ];
       
-      const notasData = datos.estudiantes.map(estudiante => [
+      const calificacionesData = datos.estudiantes.map(estudiante => [
         estudiante.nombre,
         parseFloat(estudiante.promedioFinal || 0),
-        parseFloat(calcularTotalSeccionExport(estudiante.notasDiarias) || 0),
-        estudiante.notasDiarias?.length || 0,
+        parseFloat(calcularTotalSeccionExport(estudiante.calificacionesDiarias) || 0),
+        estudiante.calificacionesDiarias?.length || 0,
         parseFloat(calcularTotalSeccionExport(estudiante.apreciacion) || 0),
         estudiante.apreciacion?.length || 0,
         parseFloat(calcularTotalSeccionExport(estudiante.examen) || 0),
@@ -977,48 +1012,51 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         parseFloat(estudiante.promedioFinal || 0) >= 3.0 ? 'Regular' : 'En Riesgo'
       ]);
 
-      const wsNotas = XLSX.utils.aoa_to_sheet([notasHeaders, ...notasData]);
-      XLSX.utils.book_append_sheet(workbook, wsNotas, 'Notas Detalladas');
+      const wsCalificaciones = XLSX.utils.aoa_to_sheet([calificacionesHeaders, ...calificacionesData]);
+      XLSX.utils.book_append_sheet(workbook, wsCalificaciones, 'Calificaciones Detalladas');
 
-      // Hoja de notas individuales por tipo
-      const detalleHeaders = ['Estudiante', 'Tipo Nota', 'Valor', 'Fecha'];
+      // Hoja de calificaciones individuales por tipo
+      const detalleHeaders = ['Estudiante', 'Tipo Calificación', 'Valor', 'Fecha', 'Título Evaluación'];
       const detalleData = [];
       
       datos.estudiantes.forEach(estudiante => {
-        // Notas diarias
-        estudiante.notasDiarias?.forEach(nota => {
+        // Calificaciones diarias
+        estudiante.calificacionesDiarias?.forEach(calificacion => {
           detalleData.push([
             estudiante.nombre,
-            'Nota Diaria',
-            parseFloat(nota.valor || 0),
-            nota.fecha || 'Sin fecha'
+            'Calificación Diaria',
+            parseFloat(calificacion.valor || 0),
+            calificacion.fecha || 'Sin fecha',
+            calificacion.titulo || 'Sin título'
           ]);
         });
         
         // Apreciación
-        estudiante.apreciacion?.forEach(nota => {
+        estudiante.apreciacion?.forEach(calificacion => {
           detalleData.push([
             estudiante.nombre,
             'Apreciación',
-            parseFloat(nota.valor || 0),
-            nota.fecha || 'Sin fecha'
+            parseFloat(calificacion.valor || 0),
+            calificacion.fecha || 'Sin fecha',
+            calificacion.titulo || 'Sin título'
           ]);
         });
         
         // Examen
-        estudiante.examen?.forEach(nota => {
+        estudiante.examen?.forEach(calificacion => {
           detalleData.push([
             estudiante.nombre,
             'Examen',
-            parseFloat(nota.valor || 0),
-            nota.fecha || 'Sin fecha'
+            parseFloat(calificacion.valor || 0),
+            calificacion.fecha || 'Sin fecha',
+            calificacion.titulo || 'Sin título'
           ]);
         });
       });
 
       if (detalleData.length > 0) {
         const wsDetalle = XLSX.utils.aoa_to_sheet([detalleHeaders, ...detalleData]);
-        XLSX.utils.book_append_sheet(workbook, wsDetalle, 'Notas Individuales');
+        XLSX.utils.book_append_sheet(workbook, wsDetalle, 'Calificaciones Individuales');
       }
 
     } else if (datos.tipo === 'asistencia') {
@@ -1030,13 +1068,15 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         'Total Presente',
         'Total Tardanza',
         'Total Ausente',
+        'Total Fuga',
+        'Total Ausencia Justificada',
         'Porcentaje Asistencia'
       ];
       
       const asistenciaData = [];
       datos.estudiantes?.forEach(estudiante => {
         const asistencia = contarAsistenciasExport(estudiante);
-        const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+        const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente + asistencia.fuga + asistencia.ausenciaJustificada;
         const porcentajeAsistencia = totalAsistencias > 0 ? 
           Math.round((asistencia.presente / totalAsistencias) * 100) : 0;
         
@@ -1048,6 +1088,8 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
           asistencia.presente,
           asistencia.tardanza,
           asistencia.ausente,
+          asistencia.fuga,
+          asistencia.ausenciaJustificada,
           `${porcentajeAsistencia}%`
         ]);
 
@@ -1057,7 +1099,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
             estudiante.nombre,
             fecha,
             estado,
-            '-', '-', '-', '-'
+            '-', '-', '-', '-', '-', '-'
           ]);
         });
       });
@@ -1075,6 +1117,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         [`Profesor: ${datos.profesor}`],
         [`Institución: ${datos.institucion}`],
         [`Fecha: ${datos.fecha}`],
+        [`Trimestre: ${detectarTrimestre()}`],
         [`Promedio General: ${datos.promedioGeneral}/5.0`],
         [`Total Estudiantes: ${datos.totalEstudiantes}`],
         [`Estudiantes en Riesgo: ${datos.estudiantesEnRiesgo}`],
@@ -1116,6 +1159,7 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
         [`Profesor: ${datos.profesor}`],
         [`Institución: ${datos.institucion}`],
         [`Fecha: ${datos.fecha}`],
+        [`Trimestre: ${detectarTrimestre()}`],
         [`Año Lectivo: ${datos.anoLectivo}`],
         [`Total Estudiantes Activos: ${datos.totalEstudiantes}`],
         [`Estudiantes Retirados: ${datos.estudiantesRetirados}`],
@@ -1132,20 +1176,39 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
       XLSX.utils.book_append_sheet(workbook, wsPorcentajes, 'Porcentajes');
 
       // Hoja de detalle por estudiante
-      const detalleHeaders = ['Estudiante', 'Promedio', 'Estado', 'Retirado', 'Tiene Notas', 'Notas Diarias', 'Apreciación', 'Examen'];
+      const detalleHeaders = ['Estudiante', 'Promedio', 'Estado', 'Retirado', 'Tiene Calificaciones', 'Calificaciones Diarias', 'Apreciación', 'Examen'];
       const detalleData = datos.estudiantes.map(estudiante => [
         estudiante.nombre,
         parseFloat(estudiante.promedio || 0),
         estudiante.estado,
         estudiante.retirado ? 'Sí' : 'No',
-        estudiante.tieneNotas ? 'Sí' : 'No',
-        estudiante.notasDiarias,
+        estudiante.tieneCalificaciones ? 'Sí' : 'No',
+        estudiante.calificacionesDiarias,
         estudiante.apreciacion,
         estudiante.examen
       ]);
 
       const wsDetalle = XLSX.utils.aoa_to_sheet([detalleHeaders, ...detalleData]);
       XLSX.utils.book_append_sheet(workbook, wsDetalle, 'Detalle Estudiantes');
+
+    } else if (datos.tipo === 'habitos') {
+      // Hoja de hábitos y aptitudes
+      const habitosHeaders = [
+        'Estudiante',
+        'Hábitos y Aptitudes',
+        'Trimestre',
+        'Fecha Evaluación'
+      ];
+      
+      const habitosData = datos.estudiantes?.map(estudiante => [
+        estudiante.nombre,
+        estudiante.habitosAptitudes || 'No evaluado',
+        detectarTrimestre(),
+        new Date().toLocaleDateString('es-PA')
+      ]);
+
+      const wsHabitos = XLSX.utils.aoa_to_sheet([habitosHeaders, ...habitosData]);
+      XLSX.utils.book_append_sheet(workbook, wsHabitos, 'Hábitos y Aptitudes');
 
     } else {
       // Exportación genérica para otros datos
@@ -1206,7 +1269,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               year: 'numeric', 
               month: 'long', 
               day: 'numeric' 
-            })}`, 
+            })} | Trimestre: ${detectarTrimestre()}`, 
             italics: true, 
             size: 22,
             color: '718096'
@@ -1218,7 +1281,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     );
 
     // Sección de información general con diseño mejorado
-    if (datos.tipo === 'notas' || datos.tipo === 'progreso') {
+    if (datos.tipo === 'calificaciones' || datos.tipo === 'progreso') {
       children.push(
         new Paragraph({
           children: [
@@ -1376,7 +1439,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               }),
               new TableCell({
                 children: [new Paragraph({ 
-                  children: [new TextRun({ text: 'Notas Diarias', bold: true, color: 'FFFFFF' })],
+                  children: [new TextRun({ text: 'Calificaciones Diarias', bold: true, color: 'FFFFFF' })],
                   alignment: AlignmentType.CENTER
                 })],
                 shading: { fill: '4C51BF' }
@@ -1437,7 +1500,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
                 new TableCell({
                   children: [new Paragraph({ 
                     children: [new TextRun({ 
-                      text: calcularTotalSeccionExport(estudiante.notasDiarias), 
+                      text: calcularTotalSeccionExport(estudiante.calificacionesDiarias), 
                       size: 20 
                     })],
                     alignment: AlignmentType.CENTER
@@ -1558,6 +1621,20 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
               }),
               new TableCell({
                 children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Fugas', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Ausencias Justificadas', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
                   children: [new TextRun({ text: 'Porcentaje', bold: true, color: 'FFFFFF' })],
                   alignment: AlignmentType.CENTER
                 })],
@@ -1567,7 +1644,7 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
           }),
           ...datos.estudiantes.map(estudiante => {
             const asistencia = contarAsistenciasExport(estudiante);
-            const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+            const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente + asistencia.fuga + asistencia.ausenciaJustificada;
             const porcentajeAsistencia = totalAsistencias > 0 ? 
               Math.round((asistencia.presente / totalAsistencias) * 100) : 0;
             const porcentajeColor = porcentajeAsistencia >= 90 ? '38A169' :
@@ -1618,9 +1695,151 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
                 new TableCell({
                   children: [new Paragraph({ 
                     children: [new TextRun({ 
+                      text: String(asistencia.fuga), 
+                      color: 'E53E3E',
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: String(asistencia.ausenciaJustificada), 
+                      color: 'D69E2E',
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
                       text: `${porcentajeAsistencia}%`, 
                       bold: true,
                       color: porcentajeColor,
+                      size: 20 
+                    })],
+                    alignment: AlignmentType.CENTER
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                })
+              ],
+            });
+          })
+        ];
+
+        children.push(
+          new Table({ 
+            width: { size: 100, type: 'pct' }, 
+            rows: tableRows 
+          })
+        );
+      }
+    } else if (datos.tipo === 'habitos') {
+      // Formato específico para hábitos y aptitudes
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: '🌟 EVALUACIÓN DE HÁBITOS Y APTITUDES', 
+              bold: true, 
+              size: 32,
+              color: '2D3748'
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Clase: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.clase || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Trimestre: ', bold: true, size: 24 }),
+            new TextRun({ text: detectarTrimestre(), size: 24 })
+          ],
+          spacing: { after: 120 },
+        }),
+        
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'Fecha: ', bold: true, size: 24 }),
+            new TextRun({ text: datos.fecha || 'No especificada', size: 24 })
+          ],
+          spacing: { after: 400 },
+        })
+      );
+
+      // Leyenda de calificaciones
+      children.push(
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: '📝 LEYENDA DE CALIFICACIONES: S = Excelente, R = Regular, X = Malo', 
+              bold: true, 
+              size: 20,
+              color: '4A5568'
+            })
+          ],
+          spacing: { after: 200 },
+        })
+      );
+
+      // Tabla de hábitos y aptitudes
+      if (datos.estudiantes && datos.estudiantes.length > 0) {
+        const tableRows = [
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Estudiante', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              }),
+              new TableCell({
+                children: [new Paragraph({ 
+                  children: [new TextRun({ text: 'Hábitos y Aptitudes', bold: true, color: 'FFFFFF' })],
+                  alignment: AlignmentType.CENTER
+                })],
+                shading: { fill: '4C51BF' }
+              })
+            ],
+          }),
+          ...datos.estudiantes.map(estudiante => {
+            const habitos = estudiante.habitosAptitudes || 'No evaluado';
+            const color = habitos === 'S' ? '38A169' : 
+                         habitos === 'R' ? 'D69E2E' : 
+                         habitos === 'X' ? 'E53E3E' : '718096';
+            
+            const texto = habitos === 'S' ? 'Excelente' : 
+                         habitos === 'R' ? 'Regular' : 
+                         habitos === 'X' ? 'Malo' : 'No evaluado';
+
+            return new TableRow({
+              children: [
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ text: estudiante.nombre, size: 20 })],
+                    alignment: AlignmentType.LEFT
+                  })],
+                  shading: { fill: 'F7FAFC' }
+                }),
+                new TableCell({
+                  children: [new Paragraph({ 
+                    children: [new TextRun({ 
+                      text: `${habitos} - ${texto}`, 
+                      bold: true,
+                      color: color,
                       size: 20 
                     })],
                     alignment: AlignmentType.CENTER
@@ -1657,8 +1876,8 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
         
         new Paragraph({
           children: [
-            new TextRun({ text: 'Año Lectivo: ', bold: true, size: 24 }),
-            new TextRun({ text: datos.anoLectivo || 'No especificado', size: 24 })
+            new TextRun({ text: 'Trimestre: ', bold: true, size: 24 }),
+            new TextRun({ text: detectarTrimestre(), size: 24 })
           ],
           spacing: { after: 120 },
         }),
@@ -1971,7 +2190,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
         spacing: { after: 400 },
       }),
       new Paragraph({
-        children: [new TextRun({ text: `Generado: ${new Date().toLocaleDateString('es-PA')}`, italics: true, size: 20 })],
+        children: [new TextRun({ text: `Generado: ${new Date().toLocaleDateString('es-PA')} | Trimestre: ${detectarTrimestre()}`, italics: true, size: 20 })],
         alignment: AlignmentType.CENTER,
         spacing: { after: 400 },
       }),
@@ -2091,7 +2310,7 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') 
     console.log('✅ Subida a Drive exitosa:', result);
     
     // Mostrar mensaje de éxito
-    alert(`🎉 ¡Archivo subido exitosamente a Google Drive!\n\n📁 Nombre: ${nombreArchivo}\n📊 Tipo: ${formato.toUpperCase()}`);
+    alert(`🎉 ¡Archivo subido exitosamente a Google Drive!\n\n📁 Nombre: ${nombreArchivo}\n📊 Tipo: ${formato.toUpperCase()}\n📅 Trimestre: ${detectarTrimestre()}`);
     
     return result;
 
@@ -2264,6 +2483,181 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
   );
 }
 
+// NUEVO COMPONENTE: Hábitos y Aptitudes
+const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos }) => {
+  const [habitosEstudiantes, setHabitosEstudiantes] = useState({});
+
+  // Inicializar hábitos desde los datos de los estudiantes
+  useEffect(() => {
+    const habitosIniciales = {};
+    estudiantes.forEach(estudiante => {
+      habitosIniciales[estudiante.id] = estudiante.habitosAptitudes || '';
+    });
+    setHabitosEstudiantes(habitosIniciales);
+  }, [estudiantes]);
+
+  const handleCambiarHabitos = async (estudianteId, valor) => {
+    try {
+      // Actualizar estado local
+      const nuevosHabitos = {
+        ...habitosEstudiantes,
+        [estudianteId]: valor
+      };
+      setHabitosEstudiantes(nuevosHabitos);
+
+      // Llamar a la función de actualización
+      await onActualizarHabitos(estudianteId, valor);
+      
+    } catch (error) {
+      console.error('Error actualizando hábitos:', error);
+      alert('Error al actualizar hábitos y aptitudes');
+    }
+  };
+
+  const getColorBoton = (estudianteId, valor) => {
+    const actual = habitosEstudiantes[estudianteId];
+    if (actual === valor) {
+      return valor === 'S' ? 'bg-green-600 text-white' :
+             valor === 'R' ? 'bg-yellow-600 text-white' :
+             valor === 'X' ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-700';
+    }
+    return 'bg-gray-200 text-gray-700 hover:bg-gray-300';
+  };
+
+  const getTextoEstado = (valor) => {
+    return valor === 'S' ? 'Excelente' :
+           valor === 'R' ? 'Regular' :
+           valor === 'X' ? 'Malo' : 'No evaluado';
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
+          <Activity className="w-8 h-8 text-purple-600" />
+          Hábitos y Aptitudes - {claseSeleccionada?.nombre}
+        </h2>
+        
+        <OpcionesExportacion
+          datos={JSON.stringify({
+            tipo: 'habitos',
+            clase: claseSeleccionada?.nombre,
+            profesor: claseSeleccionada?.profesor,
+            institucion: claseSeleccionada?.institucion,
+            fecha: new Date().toLocaleDateString('es-PA'),
+            trimestre: detectarTrimestre(),
+            estudiantes: estudiantes.map(e => ({
+              nombre: e.nombre,
+              habitosAptitudes: e.habitosAptitudes || 'No evaluado',
+              estado: getTextoEstado(e.habitosAptitudes)
+            }))
+          })}
+          nombreArchivo={`Habitos_Aptitudes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`}
+        />
+      </div>
+
+      <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">🌟 Sistema de Evaluación</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <div className="bg-green-100 border-2 border-green-300 rounded-lg p-4">
+            <span className="text-2xl font-bold text-green-800">S</span>
+            <p className="text-sm text-green-700 font-semibold">Excelente</p>
+          </div>
+          <div className="bg-yellow-100 border-2 border-yellow-300 rounded-lg p-4">
+            <span className="text-2xl font-bold text-yellow-800">R</span>
+            <p className="text-sm text-yellow-700 font-semibold">Regular</p>
+          </div>
+          <div className="bg-red-100 border-2 border-red-300 rounded-lg p-4">
+            <span className="text-2xl font-bold text-red-800">X</span>
+            <p className="text-sm text-red-700 font-semibold">Malo</p>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600 mt-4 text-center">
+          💡 Evalúa los hábitos de estudio, participación en clase, responsabilidad y actitud de cada estudiante.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {estudiantes.length === 0 && (
+          <div className="text-center py-12 text-gray-500">
+            <p className="text-lg">No hay estudiantes en esta clase</p>
+          </div>
+        )}
+
+        {estudiantes.map(estudiante => (
+          <div key={estudiante.id} className="bg-gray-50 rounded-xl p-6 hover:bg-gray-100 transition">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex items-center gap-4 flex-1">
+                <div className="bg-purple-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg">
+                  {estudiante.nombre.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="text-xl font-bold text-gray-800">{estudiante.nombre}</h4>
+                  <p className="text-sm text-gray-600">
+                    Estado actual: <span className={`font-semibold ${
+                      habitosEstudiantes[estudiante.id] === 'S' ? 'text-green-600' :
+                      habitosEstudiantes[estudiante.id] === 'R' ? 'text-yellow-600' :
+                      habitosEstudiantes[estudiante.id] === 'X' ? 'text-red-600' : 'text-gray-500'
+                    }`}>
+                      {getTextoEstado(habitosEstudiantes[estudiante.id])}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 mt-4 md:mt-0">
+                <button
+                  onClick={() => handleCambiarHabitos(estudiante.id, 'S')}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'S')}`}
+                >
+                  S
+                </button>
+                <button
+                  onClick={() => handleCambiarHabitos(estudiante.id, 'R')}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'R')}`}
+                >
+                  R
+                </button>
+                <button
+                  onClick={() => handleCambiarHabitos(estudiante.id, 'X')}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'X')}`}
+                >
+                  X
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Resumen de evaluación */}
+      <div className="mt-8 bg-blue-50 rounded-xl p-6">
+        <h4 className="text-lg font-bold text-blue-900 mb-4">📊 Resumen de Evaluación</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <div className="bg-white rounded-lg p-4 border-2 border-green-200">
+            <p className="text-2xl font-bold text-green-600">
+              {Object.values(habitosEstudiantes).filter(h => h === 'S').length}
+            </p>
+            <p className="text-sm text-green-800">Excelente (S)</p>
+          </div>
+          <div className="bg-white rounded-lg p-4 border-2 border-yellow-200">
+            <p className="text-2xl font-bold text-yellow-600">
+              {Object.values(habitosEstudiantes).filter(h => h === 'R').length}
+            </p>
+            <p className="text-sm text-yellow-800">Regular (R)</p>
+          </div>
+          <div className="bg-white rounded-lg p-4 border-2 border-red-200">
+            <p className="text-2xl font-bold text-red-600">
+              {Object.values(habitosEstudiantes).filter(h => h === 'X').length}
+            </p>
+            <p className="text-sm text-red-800">Malo (X)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function AsistenteProfesor() {
   const [usuario, setUsuario] = useState(null);
   const [mostrarLogin, setMostrarLogin] = useState(false);
@@ -2287,16 +2681,17 @@ export default function AsistenteProfesor() {
   const [nombreEstudiante, setNombreEstudiante] = useState('');
   const [expandido, setExpandido] = useState({});
   const [fechaActual, setFechaActual] = useState(new Date().toISOString().split('T')[0]);
+  const [tituloEvaluacion, setTituloEvaluacion] = useState('');
   
   const [nombreProfesor, setNombreProfesor] = useState('');
   const [institucion, setInstitucion] = useState('');
   const [gradoPlan, setGradoPlan] = useState('');
   const [materia, setMateria] = useState('');
-  const [trimestre, setTrimestre] = useState('Primer Trimestre');
+  const [trimestre, setTrimestre] = useState(detectarTrimestre());
   const [planGenerado, setPlanGenerado] = useState(null);
   const [generandoPlan, setGenerandoPlan] = useState(false);
 
-  // Estado para búsqueda de estudiantes - MANTENIDO
+  // Estado para búsqueda de estudiantes
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
 
   // Efecto para manejar el estado de autenticación
@@ -2315,6 +2710,11 @@ export default function AsistenteProfesor() {
       }
     });
     return () => unsubscribe();
+  }, []);
+
+  // Actualizar trimestre automáticamente
+  useEffect(() => {
+    setTrimestre(detectarTrimestre());
   }, []);
 
   // Cargar clases desde Firestore
@@ -2738,10 +3138,11 @@ export default function AsistenteProfesor() {
       const nuevoEstudiante = {
         id: Date.now().toString(),
         nombre: nombreEstudiante,
-        notasDiarias: [],
+        calificacionesDiarias: [],
         apreciacion: [],
         examen: [],
         asistencia: {},
+        habitosAptitudes: '',
         retirado: false
       };
       
@@ -2767,6 +3168,7 @@ export default function AsistenteProfesor() {
     }
   };
 
+  // FUNCIÓN MEJORADA: Marcar asistencia con nuevos estados
   const marcarAsistencia = async (estudianteId, fecha, estado) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
@@ -2800,18 +3202,19 @@ export default function AsistenteProfesor() {
     }
   };
 
-  // FUNCIÓN CORREGIDA: Agregar nota - AHORA FUNCIONA CORRECTAMENTE
-  const agregarNota = async (estudianteId, seccion, valor = '', fecha = new Date().toISOString().split('T')[0]) => {
+  // FUNCIÓN CORREGIDA: Agregar calificación - AHORA CON TÍTULO DE EVALUACIÓN
+  const agregarCalificacion = async (estudianteId, seccion, valor = '', fecha = new Date().toISOString().split('T')[0], titulo = tituloEvaluacion) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
-          const nuevaNota = {
+          const nuevaCalificacion = {
             valor: valor ? parseFloat(valor) : '',
-            fecha: fecha
+            fecha: fecha,
+            titulo: titulo || 'Sin título'
           };
           return {
             ...e,
-            [seccion]: [...e[seccion], nuevaNota]
+            [seccion]: [...e[seccion], nuevaCalificacion]
           };
         }
         return e;
@@ -2831,20 +3234,20 @@ export default function AsistenteProfesor() {
       );
       setClases(clasesActualizadas);
     } catch (error) {
-      console.error('Error agregando nota:', error);
-      alert('Error al agregar nota');
+      console.error('Error agregando calificación:', error);
+      alert('Error al agregar calificación');
     }
   };
 
-  const actualizarNota = async (estudianteId, seccion, indice, campo, valor) => {
+  const actualizarCalificacion = async (estudianteId, seccion, indice, campo, valor) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
-          const nuevasNotas = [...e[seccion]];
-          nuevasNotas[indice] = { ...nuevasNotas[indice], [campo]: valor };
+          const nuevasCalificaciones = [...e[seccion]];
+          nuevasCalificaciones[indice] = { ...nuevasCalificaciones[indice], [campo]: valor };
           return {
             ...e,
-            [seccion]: nuevasNotas
+            [seccion]: nuevasCalificaciones
           };
         }
         return e;
@@ -2864,18 +3267,18 @@ export default function AsistenteProfesor() {
       );
       setClases(clasesActualizadas);
     } catch (error) {
-      console.error('Error actualizando nota:', error);
+      console.error('Error actualizando calificación:', error);
     }
   };
 
-  const eliminarNota = async (estudianteId, seccion, indice) => {
+  const eliminarCalificacion = async (estudianteId, seccion, indice) => {
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
-          const nuevasNotas = e[seccion].filter((_, i) => i !== indice);
+          const nuevasCalificaciones = e[seccion].filter((_, i) => i !== indice);
           return {
             ...e,
-            [seccion]: nuevasNotas
+            [seccion]: nuevasCalificaciones
           };
         }
         return e;
@@ -2895,7 +3298,39 @@ export default function AsistenteProfesor() {
       );
       setClases(clasesActualizadas);
     } catch (error) {
-      console.error('Error eliminando nota:', error);
+      console.error('Error eliminando calificación:', error);
+    }
+  };
+
+  // FUNCIÓN NUEVA: Actualizar hábitos y aptitudes
+  const actualizarHabitos = async (estudianteId, valor) => {
+    try {
+      const nuevosEstudiantes = estudiantes.map(e => {
+        if (e.id === estudianteId) {
+          return {
+            ...e,
+            habitosAptitudes: valor
+          };
+        }
+        return e;
+      });
+      setEstudiantes(nuevosEstudiantes);
+      
+      // Actualizar en Firestore
+      await updateDoc(doc(db, 'clases', claseSeleccionada.id), {
+        estudiantes: nuevosEstudiantes
+      });
+      
+      // Actualizar estado local
+      const clasesActualizadas = clases.map(c => 
+        c.id === claseSeleccionada.id 
+          ? { ...c, estudiantes: nuevosEstudiantes }
+          : c
+      );
+      setClases(clasesActualizadas);
+    } catch (error) {
+      console.error('Error actualizando hábitos:', error);
+      throw error;
     }
   };
 
@@ -2927,12 +3362,14 @@ export default function AsistenteProfesor() {
     const presente = Object.values(registros).filter(v => v === 'presente').length;
     const ausente = Object.values(registros).filter(v => v === 'ausente').length;
     const tardanza = Object.values(registros).filter(v => v === 'tardanza').length;
-    return { presente, ausente, tardanza };
+    const fuga = Object.values(registros).filter(v => v === 'fuga').length;
+    const ausenciaJustificada = Object.values(registros).filter(v => v === 'ausenciaJustificada').length;
+    return { presente, ausente, tardanza, fuga, ausenciaJustificada };
   };
 
-  const calcularTotalSeccion = (notas) => {
-    if (!notas || notas.length === 0) return 0;
-    const numeros = notas.map(n => {
+  const calcularTotalSeccion = (calificaciones) => {
+    if (!calificaciones || calificaciones.length === 0) return 0;
+    const numeros = calificaciones.map(n => {
       const valor = typeof n === 'object' ? parseFloat(n.valor) : parseFloat(n);
       return isNaN(valor) ? 0 : valor;
     }).filter(v => v > 0);
@@ -2941,7 +3378,7 @@ export default function AsistenteProfesor() {
   };
 
   const calcularPromedioFinal = (estudiante) => {
-    const totalDiarias = parseFloat(calcularTotalSeccion(estudiante.notasDiarias));
+    const totalDiarias = parseFloat(calcularTotalSeccion(estudiante.calificacionesDiarias));
     const totalApreciacion = parseFloat(calcularTotalSeccion(estudiante.apreciacion));
     const totalExamen = parseFloat(calcularTotalSeccion(estudiante.examen));
     
@@ -2960,9 +3397,9 @@ export default function AsistenteProfesor() {
 
   // FUNCIÓN CORREGIDA: Buscar y redirigir estudiante - AHORA EN HOME
   const buscarYRedirigirEstudiante = (estudiante) => {
-    // Si estamos en home, vamos a notas
+    // Si estamos en home, vamos a calificaciones
     if (view === 'home') {
-      setView('notas');
+      setView('calificaciones');
     }
     
     // Expandir la sección del estudiante
@@ -3015,6 +3452,7 @@ export default function AsistenteProfesor() {
       profesor: claseSeleccionada?.profesor || nombreProfesorClase,
       institucion: claseSeleccionada?.institucion || institucionClase,
       fecha: new Date().toLocaleDateString('es-PA'),
+      trimestre: detectarTrimestre(),
       promedioGeneral: promedioGeneral(),
       totalEstudiantes: estudiantes.length,
       estudiantesEnRiesgo: estudiantesEnRiesgo.length,
@@ -3022,11 +3460,12 @@ export default function AsistenteProfesor() {
       distribucion: calcularDistribucionNotas(),
       estudiantes: estudiantes.map(e => ({
         nombre: e.nombre,
-        notasDiarias: e.notasDiarias,
+        calificacionesDiarias: e.calificacionesDiarias,
         apreciacion: e.apreciacion,
         examen: e.examen,
         promedioFinal: calcularPromedioFinal(e),
-        asistencia: e.asistencia
+        asistencia: e.asistencia,
+        habitosAptitudes: e.habitosAptitudes || 'No evaluado'
       }))
     };
 
@@ -3183,13 +3622,22 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Asistencia</span>
                 </button>
                 <button
-                  onClick={() => setView('notas')}
+                  onClick={() => setView('calificaciones')}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'notas' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    view === 'calificaciones' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   <ClipboardList className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Notas</span>
+                  <span className="text-sm md:text-base">Calificaciones</span>
+                </button>
+                <button
+                  onClick={() => setView('habitos')}
+                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
+                    view === 'habitos' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Activity className="w-5 h-5" />
+                  <span className="text-sm md:text-base">Hábitos</span>
                 </button>
                 <button
                   onClick={() => setView('porcentajes')}
@@ -3472,6 +3920,7 @@ export default function AsistenteProfesor() {
                     profesor: claseSeleccionada.profesor,
                     institucion: claseSeleccionada.institucion,
                     fecha: fechaActual,
+                    trimestre: detectarTrimestre(),
                     estudiantes: estudiantes.map(e => ({
                       nombre: e.nombre,
                       asistencia: e.asistencia,
@@ -3503,13 +3952,15 @@ export default function AsistenteProfesor() {
                           <span className="text-green-600 font-semibold">✓ {asist.presente}P</span>
                           <span className="text-yellow-600 font-semibold">⏰ {asist.tardanza}T</span>
                           <span className="text-red-600 font-semibold">✗ {asist.ausente}A</span>
+                          <span className="text-orange-600 font-semibold">🏃 {asist.fuga}F</span>
+                          <span className="text-blue-600 font-semibold">📝 {asist.ausenciaJustificada}AJ</span>
                         </div>
                       </div>
                       
                       <div className="flex gap-2 flex-wrap mt-4 md:mt-0">
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'presente')}
-                          className={`px-4 md:px-6 py-3 rounded-lg font-semibold transition text-sm md:text-base ${
+                          className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'presente'
                               ? 'bg-green-600 text-white'
                               : 'bg-green-100 text-green-700 hover:bg-green-200'
@@ -3519,7 +3970,7 @@ export default function AsistenteProfesor() {
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'tardanza')}
-                          className={`px-4 md:px-6 py-3 rounded-lg font-semibold transition text-sm md:text-base ${
+                          className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'tardanza'
                               ? 'bg-yellow-600 text-white'
                               : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
@@ -3529,13 +3980,33 @@ export default function AsistenteProfesor() {
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'ausente')}
-                          className={`px-4 md:px-6 py-3 rounded-lg font-semibold transition text-sm md:text-base ${
+                          className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'ausente'
                               ? 'bg-red-600 text-white'
                               : 'bg-red-100 text-red-700 hover:bg-red-200'
                           }`}
                         >
                           Ausente
+                        </button>
+                        <button
+                          onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'fuga')}
+                          className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
+                            estadoHoy === 'fuga'
+                              ? 'bg-orange-600 text-white'
+                              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                          }`}
+                        >
+                          Fuga
+                        </button>
+                        <button
+                          onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'ausenciaJustificada')}
+                          className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
+                            estadoHoy === 'ausenciaJustificada'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                          }`}
+                        >
+                          Aus. Just.
                         </button>
                       </div>
                     </div>
@@ -3546,12 +4017,12 @@ export default function AsistenteProfesor() {
           </div>
         )}
 
-        {view === 'notas' && claseSeleccionada && (
+        {view === 'calificaciones' && claseSeleccionada && (
           <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <ClipboardList className="w-8 h-8 text-purple-600" />
-                Notas - {claseSeleccionada.nombre}
+                Calificaciones - {claseSeleccionada.nombre}
               </h2>
               <div className="flex gap-4 flex-wrap">
                 <div className="bg-purple-100 px-4 md:px-6 py-3 rounded-lg">
@@ -3561,24 +4032,25 @@ export default function AsistenteProfesor() {
 
                 <OpcionesExportacion
                   datos={JSON.stringify({
-                    tipo: 'notas',
+                    tipo: 'calificaciones',
                     clase: claseSeleccionada.nombre,
                     profesor: claseSeleccionada.profesor,
                     institucion: claseSeleccionada.institucion,
                     fecha: new Date().toLocaleDateString('es-PA'),
+                    trimestre: detectarTrimestre(),
                     promedioGeneral: promedioGeneral(),
                     totalEstudiantes: estudiantes.length,
                     estudiantesEnRiesgo: estudiantesEnRiesgo.length,
                     distribucion: calcularDistribucionNotas(),
                     estudiantes: estudiantes.map(e => ({
                       nombre: e.nombre,
-                      notasDiarias: e.notasDiarias,
+                      calificacionesDiarias: e.calificacionesDiarias,
                       apreciacion: e.apreciacion,
                       examen: e.examen,
                       promedioFinal: calcularPromedioFinal(e)
                     }))
                   })}
-                  nombreArchivo={`Notas_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                  nombreArchivo={`Calificaciones_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
                 />
              </div>
             </div>
@@ -3601,19 +4073,36 @@ export default function AsistenteProfesor() {
               </div>
             )}
             
-            {/* CUADRÍCULA DE NOTAS RÁPIDAS - CORREGIDA */}
+            {/* CUADRÍCULA DE CALIFICACIONES RÁPIDAS - MEJORADA CON TÍTULO DE EVALUACIÓN */}
             {estudiantes.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border-2 border-purple-200">
                 <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  📊 Registro Rápido de Notas - {new Date().toLocaleDateString('es-PA')}
+                  📊 Registro Rápido de Calificaciones - {new Date().toLocaleDateString('es-PA')}
                 </h3>
+                
+                {/* CAMPO DE TÍTULO DE EVALUACIÓN GLOBAL */}
+                <div className="bg-blue-50 rounded-lg p-4 mb-4 border-2 border-blue-200">
+                  <label className="block text-sm font-bold text-blue-800 mb-2">
+                    📝 Título de Evaluación (aplicará a TODAS las calificaciones de hoy)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Evaluación de fracciones, Quiz de historia, etc."
+                    value={tituloEvaluacion}
+                    onChange={(e) => setTituloEvaluacion(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-blue-600 mt-2">
+                    💡 Este título se aplicará automáticamente a todas las calificaciones que agregues hoy.
+                  </p>
+                </div>
                 
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-full">
                     <thead className="bg-purple-600 text-white">
                       <tr>
                         <th className="px-4 py-3 text-left font-semibold">Estudiante</th>
-                        <th className="px-4 py-3 text-center font-semibold">Notas Diarias</th>
+                        <th className="px-4 py-3 text-center font-semibold">Calificaciones Diarias</th>
                         <th className="px-4 py-3 text-center font-semibold">Apreciación</th>
                         <th className="px-4 py-3 text-center font-semibold">Examen</th>
                         <th className="px-4 py-3 text-center font-semibold">Promedio</th>
@@ -3622,21 +4111,22 @@ export default function AsistenteProfesor() {
                     </thead>
                     <tbody>
                       {estudiantes.map((estudiante) => (
-                        <FilaNotasRapidas
+                        <FilaCalificacionesRapidas
                           key={estudiante.id}
                           estudiante={estudiante}
-                          onAgregarNota={agregarNota}
+                          onAgregarCalificacion={agregarCalificacion}
                           calcularPromedioFinal={calcularPromedioFinal}
                           claseSeleccionada={claseSeleccionada}
                           usuario={usuario}
-                          actualizarNota={actualizarNota}
+                          actualizarCalificacion={actualizarCalificacion}
+                          tituloEvaluacion={tituloEvaluacion}
                         />
                       ))}
                     </tbody>
                   </table>
                 </div>
                 <p className="text-sm text-gray-600 mt-3 text-center">
-                  💡 Ingresa las notas (0-5) y presiona "+" para agregar. Las notas se guardan automáticamente.
+                  💡 Ingresa las calificaciones (0-5) y presiona "+" para agregar. Las calificaciones se guardan automáticamente.
                 </p>
               </div>
             )}
@@ -3662,7 +4152,7 @@ export default function AsistenteProfesor() {
                         <div className="flex-1">
                           <h4 className="text-xl font-bold text-gray-800">{estudiante.nombre}</h4>
                           <div className="flex flex-wrap gap-2 md:gap-4 mt-1 text-xs md:text-sm">
-                            <span>Diarias: {calcularTotalSeccion(estudiante.notasDiarias)}</span>
+                            <span>Diarias: {calcularTotalSeccion(estudiante.calificacionesDiarias)}</span>
                             <span>Apreciación: {calcularTotalSeccion(estudiante.apreciacion)}</span>
                             <span>Examen: {calcularTotalSeccion(estudiante.examen)}</span>
                           </div>
@@ -3692,9 +4182,9 @@ export default function AsistenteProfesor() {
                     <div className="p-6 space-y-6">
                       <div>
                         <div className="flex justify-between items-center mb-4">
-                          <h5 className="font-bold text-lg text-gray-800">📝 Notas Diarias</h5>
+                          <h5 className="font-bold text-lg text-gray-800">📝 Calificaciones Diarias</h5>
                           <button
-                            onClick={() => agregarNota(estudiante.id, 'notasDiarias')}
+                            onClick={() => agregarCalificacion(estudiante.id, 'calificacionesDiarias')}
                             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center gap-2"
                           >
                             <Plus className="w-4 h-4" />
@@ -3702,26 +4192,33 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.notasDiarias.map((nota, idx) => (
+                          {estudiante.calificacionesDiarias.map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
                                 step="0.1"
                                 min="0"
                                 max="5"
-                                placeholder="Nota"
-                                value={nota.valor || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'notasDiarias', idx, 'valor', e.target.value)}
+                                placeholder="Calificación"
+                                value={calificacion.valor || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'calificacionesDiarias', idx, 'valor', e.target.value)}
                                 className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                               />
                               <input
                                 type="date"
-                                value={nota.fecha || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'notasDiarias', idx, 'fecha', e.target.value)}
+                                value={calificacion.fecha || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'calificacionesDiarias', idx, 'fecha', e.target.value)}
                                 className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                               />
+                              <input
+                                type="text"
+                                placeholder="Título"
+                                value={calificacion.titulo || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'calificacionesDiarias', idx, 'titulo', e.target.value)}
+                                className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                              />
                               <button
-                                onClick={() => eliminarNota(estudiante.id, 'notasDiarias', idx)}
+                                onClick={() => eliminarCalificacion(estudiante.id, 'calificacionesDiarias', idx)}
                                 className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3731,7 +4228,7 @@ export default function AsistenteProfesor() {
                         </div>
                         <div className="mt-2 text-right">
                           <span className="text-sm text-gray-600">Promedio: </span>
-                          <span className="font-bold text-lg text-blue-600">{calcularTotalSeccion(estudiante.notasDiarias)}/5</span>
+                          <span className="font-bold text-lg text-blue-600">{calcularTotalSeccion(estudiante.calificacionesDiarias)}/5</span>
                         </div>
                       </div>
                       
@@ -3739,7 +4236,7 @@ export default function AsistenteProfesor() {
                         <div className="flex justify-between items-center mb-4">
                           <h5 className="font-bold text-lg text-gray-800">⭐ Apreciación</h5>
                           <button
-                            onClick={() => agregarNota(estudiante.id, 'apreciacion')}
+                            onClick={() => agregarCalificacion(estudiante.id, 'apreciacion')}
                             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition text-sm font-semibold flex items-center gap-2"
                           >
                             <Plus className="w-4 h-4" />
@@ -3747,26 +4244,33 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.apreciacion.map((nota, idx) => (
+                          {estudiante.apreciacion.map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
                                 step="0.1"
                                 min="0"
                                 max="5"
-                                placeholder="Nota"
-                                value={nota.valor || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'apreciacion', idx, 'valor', e.target.value)}
+                                placeholder="Calificación"
+                                value={calificacion.valor || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'apreciacion', idx, 'valor', e.target.value)}
                                 className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
                               />
                               <input
                                 type="date"
-                                value={nota.fecha || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'apreciacion', idx, 'fecha', e.target.value)}
+                                value={calificacion.fecha || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'apreciacion', idx, 'fecha', e.target.value)}
                                 className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
                               />
+                              <input
+                                type="text"
+                                placeholder="Título"
+                                value={calificacion.titulo || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'apreciacion', idx, 'titulo', e.target.value)}
+                                className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-green-500"
+                              />
                               <button
-                                onClick={() => eliminarNota(estudiante.id, 'apreciacion', idx)}
+                                onClick={() => eliminarCalificacion(estudiante.id, 'apreciacion', idx)}
                                 className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3784,7 +4288,7 @@ export default function AsistenteProfesor() {
                         <div className="flex justify-between items-center mb-4">
                           <h5 className="font-bold text-lg text-gray-800">📋 Examen</h5>
                           <button
-                            onClick={() => agregarNota(estudiante.id, 'examen')}
+                            onClick={() => agregarCalificacion(estudiante.id, 'examen')}
                             className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition text-sm font-semibold flex items-center gap-2"
                           >
                             <Plus className="w-4 h-4" />
@@ -3792,26 +4296,33 @@ export default function AsistenteProfesor() {
                           </button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {estudiante.examen.map((nota, idx) => (
+                          {estudiante.examen.map((calificacion, idx) => (
                             <div key={idx} className="bg-gray-50 p-4 rounded-lg flex gap-3">
                               <input
                                 type="number"
                                 step="0.1"
                                 min="0"
                                 max="5"
-                                placeholder="Nota"
-                                value={nota.valor || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'examen', idx, 'valor', e.target.value)}
+                                placeholder="Calificación"
+                                value={calificacion.valor || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'examen', idx, 'valor', e.target.value)}
                                 className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                               />
                               <input
                                 type="date"
-                                value={nota.fecha || ''}
-                                onChange={(e) => actualizarNota(estudiante.id, 'examen', idx, 'fecha', e.target.value)}
+                                value={calificacion.fecha || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'examen', idx, 'fecha', e.target.value)}
                                 className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                               />
+                              <input
+                                type="text"
+                                placeholder="Título"
+                                value={calificacion.titulo || ''}
+                                onChange={(e) => actualizarCalificacion(estudiante.id, 'examen', idx, 'titulo', e.target.value)}
+                                className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
+                              />
                               <button
-                                onClick={() => eliminarNota(estudiante.id, 'examen', idx)}
+                                onClick={() => eliminarCalificacion(estudiante.id, 'examen', idx)}
                                 className="bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -3832,7 +4343,16 @@ export default function AsistenteProfesor() {
           </div>
         )}
 
-        {/* NUEVA VISTA: CUADRO DE PORCENTAJES FUNCIONAL */}
+        {/* NUEVA VISTA: HÁBITOS Y APTITUDES */}
+        {view === 'habitos' && claseSeleccionada && (
+          <HabitosAptitudes
+            estudiantes={estudiantes}
+            claseSeleccionada={claseSeleccionada}
+            onActualizarHabitos={actualizarHabitos}
+          />
+        )}
+
+        {/* VISTA DE CUADRO DE PORCENTAJES FUNCIONAL */}
         {view === 'porcentajes' && claseSeleccionada && (
           <CuadroPorcentajes 
             estudiantes={estudiantes} 
@@ -3856,6 +4376,7 @@ export default function AsistenteProfesor() {
                   profesor: claseSeleccionada.profesor,
                   institucion: claseSeleccionada.institucion,
                   fecha: new Date().toLocaleDateString('es-PA'),
+                  trimestre: detectarTrimestre(),
                   promedioGeneral: promedioGeneral(),
                   totalEstudiantes: estudiantes.length,
                   estudiantesEnRiesgo: estudiantesEnRiesgo.length,
@@ -3863,11 +4384,12 @@ export default function AsistenteProfesor() {
                   distribucion: calcularDistribucionNotas(),
                   estudiantes: estudiantes.map(e => ({
                     nombre: e.nombre,
-                    notasDiarias: e.notasDiarias,
+                    calificacionesDiarias: e.calificacionesDiarias,
                     apreciacion: e.apreciacion,
                     examen: e.examen,
                     promedioFinal: calcularPromedioFinal(e),
-                    asistencia: e.asistencia
+                    asistencia: e.asistencia,
+                    habitosAptitudes: e.habitosAptitudes || 'No evaluado'
                   }))
                 })}
                 nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
@@ -3936,7 +4458,7 @@ export default function AsistenteProfesor() {
                         <div>
                           <p className="font-semibold text-gray-800">{estudiante.nombre}</p>
                           <p className="text-sm text-gray-600">
-                            {estudiante.notasDiarias.length + estudiante.apreciacion.length + estudiante.examen.length} notas
+                            {estudiante.calificacionesDiarias.length + estudiante.apreciacion.length + estudiante.examen.length} calificaciones
                           </p>
                         </div>
                       </div>
@@ -3983,7 +4505,7 @@ export default function AsistenteProfesor() {
                         </div>
                         <div className="text-sm text-gray-600">
                           <p>Asistencia: {asistencia.presente}P {asistencia.tardanza}T {asistencia.ausente}A</p>
-                          <p>Total notas: {estudiante.notasDiarias.length + estudiante.apreciacion.length + estudiante.examen.length}</p>
+                          <p>Total calificaciones: {estudiante.calificacionesDiarias.length + estudiante.apreciacion.length + estudiante.examen.length}</p>
                         </div>
                       </div>
                     );
@@ -4004,17 +4526,30 @@ export default function AsistenteProfesor() {
                     <tr>
                       <th className="px-4 py-3 text-left">Estudiante</th>
                       <th className="px-4 py-3 text-center">Promedio</th>
-                      <th className="px-4 py-3 text-center">Notas Diarias</th>
+                      <th className="px-4 py-3 text-center">Calificaciones Diarias</th>
                       <th className="px-4 py-3 text-center">Apreciación</th>
                       <th className="px-4 py-3 text-center">Examen</th>
                       <th className="px-4 py-3 text-center">Asistencia</th>
+                      <th className="px-4 py-3 text-center">Hábitos</th>
                     </tr>
                   </thead>
                   <tbody>
                     {estudiantes.map(estudiante => {
                       const asistencia = contarAsistencias(estudiante);
-                      const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente;
+                      const totalAsistencias = asistencia.presente + asistencia.tardanza + asistencia.ausente + asistencia.fuga + asistencia.ausenciaJustificada;
                       const porcentajeAsistencia = totalAsistencias > 0 ? Math.round((asistencia.presente / totalAsistencias) * 100) : 0;
+                      
+                      const getTextoHabitos = (habitos) => {
+                        return habitos === 'S' ? 'Excelente' :
+                               habitos === 'R' ? 'Regular' :
+                               habitos === 'X' ? 'Malo' : 'No eval.';
+                      };
+
+                      const getColorHabitos = (habitos) => {
+                        return habitos === 'S' ? 'text-green-600' :
+                               habitos === 'R' ? 'text-yellow-600' :
+                               habitos === 'X' ? 'text-red-600' : 'text-gray-500';
+                      };
                       
                       return (
                         <tr key={estudiante.id} className="border-b border-gray-200 hover:bg-gray-50">
@@ -4029,7 +4564,7 @@ export default function AsistenteProfesor() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
-                            {calcularTotalSeccion(estudiante.notasDiarias)} ({estudiante.notasDiarias.length})
+                            {calcularTotalSeccion(estudiante.calificacionesDiarias)} ({estudiante.calificacionesDiarias.length})
                           </td>
                           <td className="px-4 py-3 text-center text-sm">
                             {calcularTotalSeccion(estudiante.apreciacion)} ({estudiante.apreciacion.length})
@@ -4043,6 +4578,11 @@ export default function AsistenteProfesor() {
                               porcentajeAsistencia >= 80 ? 'text-yellow-600' : 'text-red-600'
                             }`}>
                               {porcentajeAsistencia}%
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`font-semibold ${getColorHabitos(estudiante.habitosAptitudes)}`}>
+                              {getTextoHabitos(estudiante.habitosAptitudes)}
                             </span>
                           </td>
                         </tr>
@@ -4119,6 +4659,7 @@ export default function AsistenteProfesor() {
                       onChange={(e) => setTrimestre(e.target.value)}
                       className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500"
                     >
+                      <option value={detectarTrimestre()}>{detectarTrimestre()} (Actual)</option>
                       <option value="Primer Trimestre">Primer Trimestre</option>
                       <option value="Segundo Trimestre">Segundo Trimestre</option>
                       <option value="Tercer Trimestre">Tercer Trimestre</option>
