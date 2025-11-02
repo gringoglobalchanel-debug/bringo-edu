@@ -54,6 +54,33 @@ const detectarTrimestre = () => {
   return trimestreActual ? trimestreActual.nombre : 'Vacaciones';
 };
 
+// FUNCIÓN PARA VERIFICAR SI ES DÍA HÁBIL (NO FINES DE SEMANA NI FERIADOS)
+const esDiaHabil = (fecha = new Date()) => {
+  const diaSemana = fecha.getDay();
+  // 0 = Domingo, 6 = Sábado
+  if (diaSemana === 0 || diaSemana === 6) {
+    return false;
+  }
+
+  // Feriados oficiales de Panamá (puedes agregar más según sea necesario)
+  const feriados = [
+    '01-01', // Año Nuevo
+    '01-09', // Día de los Mártires
+    '03-01', // Carnaval
+    '03-02', // Carnaval
+    '05-01', // Día del Trabajo
+    '11-03', // Independencia de Panamá
+    '11-04', // Día de la Bandera
+    '11-05', // Colón
+    '11-10', // Primer Grito de Independencia
+    '12-08', // Día de la Madre
+    '12-25', // Navidad
+  ];
+
+  const mesDia = `${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;
+  return !feriados.includes(mesDia);
+};
+
 // Componente para gráfico de distribución
 const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
   const calcularDistribucion = () => {
@@ -762,7 +789,7 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
           <PieChart className="w-8 h-8 text-purple-600" />
-          Cuadro de Porcentajes Académicos
+          Cuadro de Porcentajes Académicos - {detectarTrimestre()}
         </h2>
         
         <OpcionesExportacion
@@ -772,6 +799,7 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
             profesor: claseSeleccionada?.profesor,
             institucion: claseSeleccionada?.institucion,
             fecha: new Date().toLocaleDateString('es-PA'),
+            trimestre: detectarTrimestre(),
             anoLectivo: estadisticas.anoLectivo,
             totalEstudiantes: estudiantes.filter(e => !e.retirado).length,
             estudiantesRetirados: estadisticas.retirados,
@@ -790,7 +818,7 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
               examen: e.examen ? e.examen.length : 0
             }))
           })}
-          nombreArchivo={`Cuadro_Porcentajes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`}
+          nombreArchivo={`Cuadro_Porcentajes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
         />
       </div>
 
@@ -2496,20 +2524,30 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
   );
 }
 
-// NUEVO COMPONENTE: Hábitos y Aptitudes CORREGIDO
+// NUEVO COMPONENTE: Hábitos y Aptitudes MEJORADO
 const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos }) => {
   const [habitosEstudiantes, setHabitosEstudiantes] = useState({});
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0]);
 
   // Inicializar hábitos desde los datos de los estudiantes
   useEffect(() => {
     const habitosIniciales = {};
     estudiantes.forEach(estudiante => {
-      habitosIniciales[estudiante.id] = estudiante.habitosAptitudes || '';
+      // Por defecto, todos los estudiantes tienen 'S' (Excelente) cada día
+      habitosIniciales[estudiante.id] = 'S';
     });
     setHabitosEstudiantes(habitosIniciales);
-  }, [estudiantes]);
+  }, [estudiantes, fechaSeleccionada]);
+
+  // Verificar si es día hábil
+  const esDiaHabilSeleccionado = esDiaHabil(new Date(fechaSeleccionada));
 
   const handleCambiarHabitos = async (estudianteId, valor) => {
+    if (!esDiaHabilSeleccionado) {
+      alert('No se pueden modificar hábitos y aptitudes en días no hábiles (fines de semana o feriados)');
+      return;
+    }
+
     try {
       // Actualizar estado local
       const nuevosHabitos = {
@@ -2548,7 +2586,7 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
           <Activity className="w-8 h-8 text-purple-600" />
-          Hábitos y Aptitudes - {claseSeleccionada?.nombre}
+          Hábitos y Aptitudes - {claseSeleccionada?.nombre} - {detectarTrimestre()}
         </h2>
         
         <OpcionesExportacion
@@ -2565,13 +2603,36 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
               estado: getTextoEstado(e.habitosAptitudes)
             }))
           })}
-          nombreArchivo={`Habitos_Aptitudes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`}
+          nombreArchivo={`Habitos_Aptitudes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
         />
       </div>
 
+      {/* Selector de fecha */}
       <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">🌟 Sistema de Evaluación</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">🌟 Sistema de Evaluación</h3>
+            <p className="text-gray-600">
+              Evalúa los hábitos de estudio, participación en clase, responsabilidad y actitud de cada estudiante.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-bold text-gray-700">Fecha de Evaluación:</label>
+            <input
+              type="date"
+              value={fechaSeleccionada}
+              onChange={(e) => setFechaSeleccionada(e.target.value)}
+              className="px-4 py-2 border-2 border-purple-300 rounded-lg focus:outline-none focus:border-purple-500"
+            />
+            {!esDiaHabilSeleccionado && (
+              <p className="text-sm text-red-600 font-semibold">
+                ⚠️ Día no hábil - No se pueden modificar evaluaciones
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mt-4">
           <div className="bg-green-100 border-2 border-green-300 rounded-lg p-4">
             <span className="text-2xl font-bold text-green-800">S</span>
             <p className="text-sm text-green-700 font-semibold">Excelente</p>
@@ -2585,9 +2646,6 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
             <p className="text-sm text-red-700 font-semibold">Malo</p>
           </div>
         </div>
-        <p className="text-sm text-gray-600 mt-4 text-center">
-          💡 Evalúa los hábitos de estudio, participación en clase, responsabilidad y actitud de cada estudiante.
-        </p>
       </div>
 
       <div className="space-y-4">
@@ -2621,19 +2679,28 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
               <div className="flex gap-2 mt-4 md:mt-0">
                 <button
                   onClick={() => handleCambiarHabitos(estudiante.id, 'S')}
-                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'S')}`}
+                  disabled={!esDiaHabilSeleccionado}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'S')} ${
+                    !esDiaHabilSeleccionado ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   S
                 </button>
                 <button
                   onClick={() => handleCambiarHabitos(estudiante.id, 'R')}
-                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'R')}`}
+                  disabled={!esDiaHabilSeleccionado}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'R')} ${
+                    !esDiaHabilSeleccionado ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   R
                 </button>
                 <button
                   onClick={() => handleCambiarHabitos(estudiante.id, 'X')}
-                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'X')}`}
+                  disabled={!esDiaHabilSeleccionado}
+                  className={`px-4 py-3 rounded-lg font-bold transition ${getColorBoton(estudiante.id, 'X')} ${
+                    !esDiaHabilSeleccionado ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   X
                 </button>
@@ -2645,7 +2712,7 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
 
       {/* Resumen de evaluación */}
       <div className="mt-8 bg-blue-50 rounded-xl p-6">
-        <h4 className="text-lg font-bold text-blue-900 mb-4">📊 Resumen de Evaluación</h4>
+        <h4 className="text-lg font-bold text-blue-900 mb-4">📊 Resumen de Evaluación - {fechaSeleccionada}</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
           <div className="bg-white rounded-lg p-4 border-2 border-green-200">
             <p className="text-2xl font-bold text-green-600">
@@ -2665,6 +2732,63 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
             </p>
             <p className="text-sm text-red-800">Malo (X)</p>
           </div>
+        </div>
+        {!esDiaHabilSeleccionado && (
+          <div className="mt-4 bg-yellow-100 border-2 border-yellow-300 rounded-lg p-4 text-center">
+            <p className="text-yellow-800 font-semibold">
+              📅 Hoy es día no hábil. Las evaluaciones están bloqueadas.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// NUEVO COMPONENTE: Modal Libreta Digital
+const ModalLibretaDigital = ({ mostrar, onCerrar }) => {
+  if (!mostrar) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
+        <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 rounded-t-2xl text-center">
+          <div className="inline-block bg-white rounded-full p-4 mb-4 shadow-lg">
+            <BookOpen className="w-8 h-8 text-purple-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">Libreta Digital</h3>
+          <p className="text-purple-100">Integración en desarrollo</p>
+        </div>
+        
+        <div className="p-6 text-center">
+          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-4">
+            <div className="text-4xl mb-4">🚧</div>
+            <h4 className="text-xl font-bold text-yellow-800 mb-2">¡Próximamente!</h4>
+            <p className="text-yellow-700">
+              Estamos trabajando en la integración con tu libreta digital oficial.
+            </p>
+          </div>
+          
+          <p className="text-gray-600 mb-6">
+            Pronto podrás pasar tus notas y asistencia a tu libreta digital con unos pocos clicks.
+          </p>
+          
+          <div className="bg-blue-50 rounded-lg p-4 mb-6">
+            <h5 className="font-bold text-blue-800 mb-2">Características que incluirá:</h5>
+            <ul className="text-sm text-blue-700 text-left space-y-1">
+              <li>✅ Sincronización automática de calificaciones</li>
+              <li>✅ Exportación de asistencia</li>
+              <li>✅ Integración con sistemas oficiales</li>
+              <li>✅ Reportes automáticos</li>
+            </ul>
+          </div>
+          
+          <button
+            onClick={onCerrar}
+            className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold w-full"
+          >
+            Entendido
+          </button>
         </div>
       </div>
     </div>
@@ -2706,6 +2830,9 @@ export default function AsistenteProfesor() {
 
   // Estado para búsqueda de estudiantes
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
+
+  // Estado para modal de libreta digital
+  const [mostrarLibretaDigital, setMostrarLibretaDigital] = useState(false);
 
   // Efecto para manejar el estado de autenticación
   useEffect(() => {
@@ -3181,8 +3308,14 @@ export default function AsistenteProfesor() {
     }
   };
 
-  // FUNCIÓN MEJORADA: Marcar asistencia con nuevos estados
+  // FUNCIÓN MEJORADA: Marcar asistencia con nuevos estados y valor por defecto
   const marcarAsistencia = async (estudianteId, fecha, estado) => {
+    // Verificar si es día hábil
+    if (!esDiaHabil(new Date(fecha))) {
+      alert('No se puede marcar asistencia en días no hábiles (fines de semana o feriados)');
+      return;
+    }
+
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
         if (e.id === estudianteId) {
@@ -3498,7 +3631,7 @@ export default function AsistenteProfesor() {
       }))
     };
 
-    const nombreArchivo = `Tablero_Progreso_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}`;
+    const nombreArchivo = `Tablero_Progreso_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`;
 
     switch (formato) {
       case 'excel':
@@ -3567,6 +3700,11 @@ export default function AsistenteProfesor() {
         registrarUsuario={registrarUsuario}
         limpiarFormulariosAuth={limpiarFormulariosAuth}
         setMostrarLogin={setMostrarLogin}
+      />
+
+      <ModalLibretaDigital
+        mostrar={mostrarLibretaDigital}
+        onCerrar={() => setMostrarLibretaDigital(false)}
       />
 
       {/* HEADER MEJORADO */}
@@ -3699,6 +3837,15 @@ export default function AsistenteProfesor() {
               <Sparkles className="w-5 h-5" />
               <span className="text-sm md:text-base">Plan IA</span>
             </button>
+
+            {/* NUEVO BOTÓN: Libreta Digital */}
+            <button
+              onClick={() => setMostrarLibretaDigital(true)}
+              className="flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700"
+            >
+              <BookOpen className="w-5 h-5" />
+              <span className="text-sm md:text-base">Libreta Digital</span>
+            </button>
           </div>
         </div>
       </nav>
@@ -3709,7 +3856,7 @@ export default function AsistenteProfesor() {
             <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6 flex items-center gap-3">
                 <span className="text-4xl">🏫</span>
-                Mis Clases
+                Mis Clases - {detectarTrimestre()}
               </h2>
               
               {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES EN HOME - MEJORADA */}
@@ -3846,7 +3993,7 @@ export default function AsistenteProfesor() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <Users className="w-8 h-8 text-purple-600" />
-                {claseSeleccionada.nombre}
+                {claseSeleccionada.nombre} - {detectarTrimestre()}
               </h2>
               <button
                 onClick={() => {
@@ -3934,7 +4081,7 @@ export default function AsistenteProfesor() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <Calendar className="w-8 h-8 text-purple-600" />
-                Asistencia - {claseSeleccionada.nombre}
+                Asistencia - {claseSeleccionada.nombre} - {detectarTrimestre()}
               </h2>
               <div className="flex gap-4">
                 <input
@@ -3961,6 +4108,22 @@ export default function AsistenteProfesor() {
                 />
               </div>
             </div>
+
+            {/* Indicador de día hábil */}
+            {!esDiaHabil(new Date(fechaActual)) && (
+              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                  <div>
+                    <h3 className="font-bold text-yellow-800">Día no hábil</h3>
+                    <p className="text-yellow-700 text-sm">
+                      Hoy es {new Date(fechaActual).toLocaleDateString('es-PA', { weekday: 'long' })}. 
+                      No se puede marcar asistencia en fines de semana o feriados.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="space-y-4">
               {estudiantes.length === 0 && (
@@ -3972,6 +4135,7 @@ export default function AsistenteProfesor() {
               {estudiantes.map(estudiante => {
                 const asist = contarAsistencias(estudiante);
                 const estadoHoy = estudiante.asistencia?.[fechaActual];
+                const esDiaHabilHoy = esDiaHabil(new Date(fechaActual));
                 
                 return (
                   <div key={estudiante.id} className="bg-gray-50 rounded-xl p-6">
@@ -3990,50 +4154,65 @@ export default function AsistenteProfesor() {
                       <div className="flex gap-2 flex-wrap mt-4 md:mt-0">
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'presente')}
+                          disabled={!esDiaHabilHoy}
                           className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'presente'
                               ? 'bg-green-600 text-white'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : esDiaHabilHoy 
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           Presente
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'tardanza')}
+                          disabled={!esDiaHabilHoy}
                           className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'tardanza'
                               ? 'bg-yellow-600 text-white'
-                              : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                              : esDiaHabilHoy 
+                                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           Tardanza
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'ausente')}
+                          disabled={!esDiaHabilHoy}
                           className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'ausente'
                               ? 'bg-red-600 text-white'
-                              : 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : esDiaHabilHoy 
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           Ausente
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'fuga')}
+                          disabled={!esDiaHabilHoy}
                           className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'fuga'
                               ? 'bg-orange-600 text-white'
-                              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              : esDiaHabilHoy 
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           Fuga
                         </button>
                         <button
                           onClick={() => marcarAsistencia(estudiante.id, fechaActual, 'ausenciaJustificada')}
+                          disabled={!esDiaHabilHoy}
                           className={`px-3 md:px-4 py-2 md:py-3 rounded-lg font-semibold transition text-xs md:text-sm ${
                             estadoHoy === 'ausenciaJustificada'
                               ? 'bg-blue-600 text-white'
-                              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                              : esDiaHabilHoy 
+                                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           Aus. Just.
@@ -4052,7 +4231,7 @@ export default function AsistenteProfesor() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <ClipboardList className="w-8 h-8 text-purple-600" />
-                Calificaciones - {claseSeleccionada.nombre}
+                Calificaciones - {claseSeleccionada.nombre} - {detectarTrimestre()}
               </h2>
               <div className="flex gap-4 flex-wrap">
                 <div className="bg-purple-100 px-4 md:px-6 py-3 rounded-lg">
@@ -4080,7 +4259,7 @@ export default function AsistenteProfesor() {
                       promedioFinal: calcularPromedioFinal(e)
                     }))
                   })}
-                  nombreArchivo={`Calificaciones_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                  nombreArchivo={`Calificaciones_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
                 />
              </div>
             </div>
@@ -4397,7 +4576,7 @@ export default function AsistenteProfesor() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <TrendingUp className="w-8 h-8 text-purple-600" />
-                Tablero de Progreso - {claseSeleccionada.nombre}
+                Tablero de Progreso - {claseSeleccionada.nombre} - {detectarTrimestre()}
               </h2>
               <OpcionesExportacion
                 datos={JSON.stringify({
@@ -4422,7 +4601,7 @@ export default function AsistenteProfesor() {
                     habitosAptitudes: e.habitosAptitudes || 'No evaluado'
                   }))
                 })}
-                nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}`}
+                nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
                 onExportar={exportarProgreso}
               />
             </div>
