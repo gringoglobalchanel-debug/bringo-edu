@@ -607,10 +607,67 @@ const ModalRegistro = ({
   );
 };
 
-// Componente de Barra de Búsqueda de ESTUDIANTES MEJORADO con sugerencias
-const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante }) => {
+// NUEVO COMPONENTE: Modal de Confirmación para Retirar Estudiante
+const ModalConfirmacionRetiro = ({ mostrar, onCerrar, onConfirmar, estudiante }) => {
+  if (!mostrar) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
+        <div className="bg-gradient-to-r from-orange-500 to-red-600 p-6 rounded-t-2xl text-center">
+          <div className="inline-block bg-white rounded-full p-4 mb-4 shadow-lg">
+            <UserX className="w-8 h-8 text-orange-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-white mb-2">Retirar Estudiante</h3>
+          <p className="text-orange-100">Confirmar retiro del estudiante</p>
+        </div>
+        
+        <div className="p-6 text-center">
+          <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4 mb-4">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h4 className="text-xl font-bold text-orange-800 mb-2">¿Estás seguro?</h4>
+            <p className="text-orange-700">
+              Estás a punto de retirar al estudiante <strong>{estudiante?.nombre}</strong>.
+            </p>
+          </div>
+          
+          <p className="text-gray-600 mb-6">
+            El estudiante será marcado como "Retirado" en el sistema. Esta acción no se puede deshacer.
+          </p>
+          
+          <div className="flex gap-3">
+            <button
+              onClick={onCerrar}
+              className="flex-1 bg-gray-200 text-gray-800 py-3 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirmar}
+              className="flex-1 bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 transition font-semibold"
+            >
+              Sí, Retirar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente de Barra de Búsqueda de ESTUDIANTES MEJORADO con sugerencias - MOVIDA FUERA DEL CUADRO DE CLASES
+const BarraBusquedaEstudiantes = ({ clases, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante }) => {
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+
+  // Obtener todos los estudiantes de todas las clases
+  const todosLosEstudiantes = clases.flatMap(clase => 
+    (clase.estudiantes || []).map(estudiante => ({
+      ...estudiante,
+      claseNombre: clase.nombre,
+      claseId: clase.id
+    }))
+  );
 
   // Normalizar texto para búsqueda (minúsculas, sin tildes, sin comas)
   const normalizarTexto = (texto) => {
@@ -624,7 +681,7 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
   useEffect(() => {
     if (busquedaEstudiante.length >= 2) {
       const textoBusqueda = normalizarTexto(busquedaEstudiante);
-      const sugerenciasFiltradas = estudiantes.filter(estudiante => 
+      const sugerenciasFiltradas = todosLosEstudiantes.filter(estudiante => 
         normalizarTexto(estudiante.nombre).includes(textoBusqueda)
       );
       setSugerencias(sugerenciasFiltradas);
@@ -633,12 +690,12 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
       setSugerencias([]);
       setMostrarSugerencias(false);
     }
-  }, [busquedaEstudiante, estudiantes]);
+  }, [busquedaEstudiante, todosLosEstudiantes]);
 
   const buscarYRedirigirEstudiante = (nombre) => {
     if (!nombre.trim()) return;
     
-    const estudianteEncontrado = estudiantes.find(e => 
+    const estudianteEncontrado = todosLosEstudiantes.find(e => 
       normalizarTexto(e.nombre).includes(normalizarTexto(nombre))
     );
     
@@ -662,24 +719,27 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
       <div className="flex flex-col md:flex-row gap-4 items-center">
         <div className="flex-1 w-full relative">
           <label className="block text-sm font-bold text-gray-700 mb-2">
-            🔍 Buscar Estudiante
+            🔍 Buscar Estudiante (en todas las clases)
           </label>
           <div className="relative">
-            <input
-              type="text"
-              placeholder="Escribe el nombre del estudiante..."
-              value={busquedaEstudiante}
-              onChange={(e) => setBusquedaEstudiante(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
-              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm md:text-base"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Escribe el nombre del estudiante..."
+                value={busquedaEstudiante}
+                onChange={(e) => setBusquedaEstudiante(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && buscarYRedirigirEstudiante(busquedaEstudiante)}
+                className="w-full px-4 py-3 pl-12 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-purple-500 text-sm md:text-base"
+              />
+              <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+            </div>
             
             {/* Lista de sugerencias */}
             {mostrarSugerencias && sugerencias.length > 0 && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                 {sugerencias.map((estudiante) => (
                   <div
-                    key={estudiante.id}
+                    key={`${estudiante.claseId}-${estudiante.id}`}
                     onClick={() => seleccionarSugerencia(estudiante)}
                     className="px-4 py-3 hover:bg-purple-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                   >
@@ -687,7 +747,10 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
                       <div className="bg-purple-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
                         {estudiante.nombre.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-medium">{estudiante.nombre}</span>
+                      <div className="flex-1">
+                        <span className="font-medium">{estudiante.nombre}</span>
+                        <p className="text-xs text-gray-500 mt-1">Clase: {estudiante.claseNombre}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -704,7 +767,6 @@ const BarraBusquedaEstudiantes = ({ estudiantes, onBuscarEstudiante, busquedaEst
             onClick={() => buscarYRedirigirEstudiante(busquedaEstudiante)}
             className="bg-purple-600 text-white px-4 md:px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-2 text-sm md:text-base"
           >
-            <Search className="w-4 h-4 md:w-5 md:h-5" />
             <span className="hidden sm:inline">Buscar</span>
           </button>
         </div>
@@ -2834,6 +2896,10 @@ export default function AsistenteProfesor() {
   // Estado para modal de libreta digital
   const [mostrarLibretaDigital, setMostrarLibretaDigital] = useState(false);
 
+  // NUEVO ESTADO: Modal de confirmación para retirar estudiante
+  const [mostrarModalRetiro, setMostrarModalRetiro] = useState(false);
+  const [estudianteARetirar, setEstudianteARetirar] = useState(null);
+
   // Efecto para manejar el estado de autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -2966,11 +3032,25 @@ export default function AsistenteProfesor() {
     setErrorAuth('');
   };
 
-  // FUNCIÓN NUEVA: Retirar estudiante
-  const retirarEstudiante = async (id) => {
+  // FUNCIÓN NUEVA: Abrir modal de confirmación para retirar estudiante
+  const abrirModalRetiro = (estudiante) => {
+    setEstudianteARetirar(estudiante);
+    setMostrarModalRetiro(true);
+  };
+
+  // FUNCIÓN NUEVA: Cerrar modal de confirmación
+  const cerrarModalRetiro = () => {
+    setMostrarModalRetiro(false);
+    setEstudianteARetirar(null);
+  };
+
+  // FUNCIÓN NUEVA: Confirmar retiro de estudiante
+  const confirmarRetiroEstudiante = async () => {
+    if (!estudianteARetirar) return;
+    
     try {
       const nuevosEstudiantes = estudiantes.map(e => {
-        if (e.id === id) {
+        if (e.id === estudianteARetirar.id) {
           return {
             ...e,
             retirado: true,
@@ -2995,6 +3075,7 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
       
       alert('Estudiante marcado como retirado');
+      cerrarModalRetiro();
     } catch (error) {
       console.error('Error retirando estudiante:', error);
       alert('Error al retirar estudiante');
@@ -3707,6 +3788,14 @@ export default function AsistenteProfesor() {
         onCerrar={() => setMostrarLibretaDigital(false)}
       />
 
+      {/* NUEVO MODAL: Confirmación para retirar estudiante */}
+      <ModalConfirmacionRetiro
+        mostrar={mostrarModalRetiro}
+        onCerrar={cerrarModalRetiro}
+        onConfirmar={confirmarRetiroEstudiante}
+        estudiante={estudianteARetirar}
+      />
+
       {/* HEADER MEJORADO */}
       <header className="bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
@@ -3850,6 +3939,18 @@ export default function AsistenteProfesor() {
         </div>
       </nav>
 
+      {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES - AHORA FUERA DEL CUADRO DE CLASES, JUSTO DEBAJO DE LAS PESTAÑAS */}
+      {usuario && clases.length > 0 && (
+        <div className="container mx-auto px-4 pt-4">
+          <BarraBusquedaEstudiantes
+            clases={clases}
+            onBuscarEstudiante={buscarYRedirigirEstudiante}
+            busquedaEstudiante={busquedaEstudiante}
+            setBusquedaEstudiante={setBusquedaEstudiante}
+          />
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8">
         {view === 'home' && (
           <div className="space-y-6">
@@ -3858,16 +3959,6 @@ export default function AsistenteProfesor() {
                 <span className="text-4xl">🏫</span>
                 Mis Clases - {detectarTrimestre()}
               </h2>
-              
-              {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES EN HOME - MEJORADA */}
-              {usuario && claseSeleccionada && estudiantes.length > 0 && (
-                <BarraBusquedaEstudiantes
-                  estudiantes={estudiantes}
-                  onBuscarEstudiante={buscarYRedirigirEstudiante}
-                  busquedaEstudiante={busquedaEstudiante}
-                  setBusquedaEstudiante={setBusquedaEstudiante}
-                />
-              )}
               
               {!usuario && (
                 <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-6">
@@ -4051,8 +4142,9 @@ export default function AsistenteProfesor() {
                       </div>
                     </div>
                     <div className="flex gap-2 mt-4 md:mt-0">
+                      {/* BOTÓN MODIFICADO: Ahora abre modal de confirmación en lugar de retirar directamente */}
                       <button
-                        onClick={() => retirarEstudiante(estudiante.id)}
+                        onClick={() => abrirModalRetiro(estudiante)}
                         className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-lg transition"
                         title="Retirar estudiante"
                       >
