@@ -3,6 +3,7 @@ import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronU
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { getAnalytics, logEvent, setUserProperties, setUserId } from 'firebase/analytics';
 
 // Importar librerías REALES de exportación
 import * as XLSX from 'xlsx';
@@ -22,6 +23,52 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const analytics = getAnalytics(app);
+
+// === SISTEMA DE ANALYTICS - NUEVO ===
+const useAnalytics = () => {
+  const prevViewRef = React.useRef('');
+
+  const trackPageView = (screenName, additionalParams = {}) => {
+    if (screenName && screenName !== prevViewRef.current) {
+      logEvent(analytics, 'screen_view', {
+        screen_name: screenName,
+        app_name: 'Bringo Edu',
+        ...additionalParams
+      });
+      prevViewRef.current = screenName;
+    }
+  };
+
+  const trackEvent = (eventName, parameters = {}) => {
+    console.log(`📊 Analytics Event: ${eventName}`, parameters);
+    logEvent(analytics, eventName, {
+      app_name: 'Bringo Edu',
+      timestamp: new Date().toISOString(),
+      ...parameters
+    });
+  };
+
+  const setUserAnalytics = (user) => {
+    if (user) {
+      setUserId(analytics, user.uid);
+      setUserProperties(analytics, {
+        user_type: 'teacher',
+        sign_up_method: 'email',
+        has_premium: 'false'
+      });
+    } else {
+      setUserId(analytics, null);
+    }
+  };
+
+  return {
+    trackPageView,
+    trackEvent,
+    setUserAnalytics
+  };
+};
+// === FIN SISTEMA ANALYTICS ===
 
 // FUNCIÓN PARA DETECTAR TRIMESTRE AUTOMÁTICAMENTE
 const detectarTrimestre = () => {
@@ -163,7 +210,7 @@ const DistribucionNotas = ({ estudiantes, calcularPromedioFinal }) => {
 };
 
 // Componente para Fila de Calificaciones Rápidas CORREGIDO
-const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcularPromedioFinal, claseSeleccionada, usuario, actualizarCalificacion, tituloEvaluacion }) => {
+const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcularPromedioFinal, claseSeleccionada, usuario, actualizarCalificacion, tituloEvaluacion, trackEvent }) => {
   const [calificacionDiaria, setCalificacionDiaria] = useState('');
   const [calificacionApreciacion, setCalificacionApreciacion] = useState('');
   const [calificacionExamen, setCalificacionExamen] = useState('');
@@ -174,6 +221,15 @@ const FilaCalificacionesRapidas = ({ estudiante, onAgregarCalificacion, calcular
       try {
         await onAgregarCalificacion(estudiante.id, tipo, parseFloat(valor), fecha, tituloEvaluacion);
         
+        // Track del evento de calificación
+        trackEvent('calificacion_agregada', {
+          tipo_calificacion: tipo,
+          valor: parseFloat(valor),
+          estudiante: estudiante.nombre,
+          clase: claseSeleccionada?.nombre,
+          titulo_evaluacion: tituloEvaluacion
+        });
+
         // Limpiar el campo
         if (tipo === 'calificacionesDiarias') setCalificacionDiaria('');
         if (tipo === 'apreciacion') setCalificacionApreciacion('');
@@ -217,6 +273,13 @@ ${formatoCalificaciones(estudiante.examen || [])}
 
 ---
 Generado con Bringo Edu 📚 | Transparente y Confiable`;
+
+    // Track del evento de compartir
+    trackEvent('reporte_compartido', {
+      plataforma: 'whatsapp',
+      estudiante: estudiante.nombre,
+      clase: claseSeleccionada?.nombre
+    });
 
     const url = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
     window.open(url, '_blank');
@@ -331,7 +394,8 @@ const ModalLogin = ({
   cargandoAuth, 
   iniciarSesion, 
   limpiarFormulariosAuth,
-  setMostrarRegistro 
+  setMostrarRegistro,
+  trackEvent 
 }) => {
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
@@ -339,6 +403,7 @@ const ModalLogin = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    trackEvent('login_intento', { email: email });
     iniciarSesion();
   };
 
@@ -416,6 +481,7 @@ const ModalLogin = ({
             onClick={() => {
               setMostrarLogin(false);
               limpiarFormulariosAuth();
+              trackEvent('login_cancelado');
             }}
             className="w-full mt-3 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 transition font-semibold"
           >
@@ -429,6 +495,7 @@ const ModalLogin = ({
               onClick={() => {
                 setMostrarLogin(false);
                 setMostrarRegistro(true);
+                trackEvent('registro_desde_login');
               }}
               className="text-purple-600 hover:text-purple-800 font-bold text-lg hover:underline"
             >
@@ -457,7 +524,8 @@ const ModalRegistro = ({
   cargandoAuth, 
   registrarUsuario, 
   limpiarFormulariosAuth,
-  setMostrarLogin 
+  setMostrarLogin,
+  trackEvent 
 }) => {
   const [mostrarPassword, setMostrarPassword] = useState(false);
   const [mostrarConfirmarPassword, setMostrarConfirmarPassword] = useState(false);
@@ -466,6 +534,10 @@ const ModalRegistro = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    trackEvent('registro_intento', { 
+      email: email,
+      nombre: nombreUsuario 
+    });
     registrarUsuario();
   };
 
@@ -582,6 +654,7 @@ const ModalRegistro = ({
             onClick={() => {
               setMostrarRegistro(false);
               limpiarFormulariosAuth();
+              trackEvent('registro_cancelado');
             }}
             className="w-full mt-3 bg-gray-100 text-gray-700 py-3 rounded-xl hover:bg-gray-200 transition font-semibold"
           >
@@ -595,6 +668,7 @@ const ModalRegistro = ({
               onClick={() => {
                 setMostrarRegistro(false);
                 setMostrarLogin(true);
+                trackEvent('login_desde_registro');
               }}
               className="text-green-600 hover:text-green-800 font-bold text-lg hover:underline"
             >
@@ -656,7 +730,7 @@ const ModalConfirmacionRetiro = ({ mostrar, onCerrar, onConfirmar, estudiante })
 };
 
 // Componente de Barra de Búsqueda de ESTUDIANTES MEJORADO con sugerencias - MOVIDA FUERA DEL CUADRO DE CLASES
-const BarraBusquedaEstudiantes = ({ clases, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante }) => {
+const BarraBusquedaEstudiantes = ({ clases, onBuscarEstudiante, busquedaEstudiante, setBusquedaEstudiante, trackEvent }) => {
   const [sugerencias, setSugerencias] = useState([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
@@ -700,15 +774,29 @@ const BarraBusquedaEstudiantes = ({ clases, onBuscarEstudiante, busquedaEstudian
     );
     
     if (estudianteEncontrado) {
+      trackEvent('busqueda_estudiante', {
+        termino_busqueda: nombre,
+        estudiante_encontrado: estudianteEncontrado.nombre,
+        clase: estudianteEncontrado.claseNombre
+      });
+      
       onBuscarEstudiante(estudianteEncontrado);
       setBusquedaEstudiante('');
       setMostrarSugerencias(false);
     } else {
+      trackEvent('busqueda_estudiante_no_encontrado', {
+        termino_busqueda: nombre
+      });
       alert('Estudiante no encontrado');
     }
   };
 
   const seleccionarSugerencia = (estudiante) => {
+    trackEvent('busqueda_sugerencia_seleccionada', {
+      estudiante: estudiante.nombre,
+      clase: estudiante.claseNombre
+    });
+    
     onBuscarEstudiante(estudiante);
     setBusquedaEstudiante('');
     setMostrarSugerencias(false);
@@ -776,7 +864,7 @@ const BarraBusquedaEstudiantes = ({ clases, onBuscarEstudiante, busquedaEstudian
 };
 
 // Componente para Cuadro de Porcentajes CORREGIDO
-const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSeleccionada }) => {
+const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSeleccionada, trackEvent }) => {
   const calcularEstadisticas = () => {
     const anoActual = new Date().getFullYear();
     const anoLectivo = `${anoActual}-${anoActual + 1}`;
@@ -881,6 +969,7 @@ const CuadroPorcentajes = ({ estudiantes, calcularPromedioFinal, claseSelecciona
             }))
           })}
           nombreArchivo={`Cuadro_Porcentajes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
+          trackEvent={trackEvent}
         />
       </div>
 
@@ -1055,10 +1144,17 @@ const contarAsistenciasExport = (estudiante) => {
 };
 
 // Exportar a Excel CORREGIDO - SIN ERRORES
-const exportarAExcel = (datosIn, nombreArchivo) => {
+const exportarAExcel = (datosIn, nombreArchivo, trackEvent) => {
   try {
     const datos = normalizarDatos(datosIn);
     const workbook = XLSX.utils.book_new();
+
+    // Track del evento de exportación
+    trackEvent('exportacion_excel', {
+      tipo_datos: datos.tipo,
+      nombre_archivo: nombreArchivo,
+      clase: datos.clase
+    });
 
     // Crear múltiples hojas según el tipo de datos
     if (datos.tipo === 'calificaciones') {
@@ -1331,15 +1427,26 @@ const exportarAExcel = (datosIn, nombreArchivo) => {
     
   } catch (error) {
     console.error('❌ Error al exportar a Excel:', error);
+    trackEvent('error_exportacion', {
+      tipo: 'excel',
+      error: error.message
+    });
     alert('Error al generar archivo Excel: ' + error.message);
   }
 };
 
 // Exportar a Word CORREGIDO - SIN ERRORES
-const exportarAWord = async (datosIn, nombreArchivo) => {
+const exportarAWord = async (datosIn, nombreArchivo, trackEvent) => {
   try {
     const datos = normalizarDatos(datosIn);
     const children = [];
+
+    // Track del evento de exportación
+    trackEvent('exportacion_word', {
+      tipo_datos: datos.tipo,
+      nombre_archivo: nombreArchivo,
+      clase: datos.clase
+    });
 
     // Título principal con formato atractivo
     children.push(
@@ -2249,6 +2356,10 @@ const exportarAWord = async (datosIn, nombreArchivo) => {
     
   } catch (error) {
     console.error('❌ Error al exportar a Word:', error);
+    trackEvent('error_exportacion', {
+      tipo: 'word',
+      error: error.message
+    });
     alert('Error al generar archivo Word: ' + error.message);
   }
 };
@@ -2354,7 +2465,7 @@ const generarBlobPorFormato = async (datosIn, formato) => {
 };
 
 // Subir a Google Drive CORREGIDO
-const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') => {
+const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel', trackEvent) => {
   try {
     console.log('🔄 Iniciando subida a Google Drive...', { nombreArchivoBase, formato });
     
@@ -2367,6 +2478,12 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') 
     formData.append('file', blob, nombreArchivo);
     formData.append('filename', nombreArchivo);
     formData.append('mimeType', mime);
+
+    // Track del evento de subida
+    trackEvent('subida_drive_iniciada', {
+      nombre_archivo: nombreArchivo,
+      formato: formato
+    });
 
     // Configurar headers de autenticación
     let headers = {
@@ -2406,11 +2523,21 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Error response:', errorText);
+      trackEvent('error_subida_drive', {
+        error: errorText,
+        status: response.status
+      });
       throw new Error(`Error ${response.status}: ${errorText || 'Error del servidor'}`);
     }
 
     const result = await response.json();
     console.log('✅ Subida a Drive exitosa:', result);
+    
+    // Track del éxito
+    trackEvent('subida_drive_exitosa', {
+      nombre_archivo: nombreArchivo,
+      formato: formato
+    });
     
     // Mostrar mensaje de éxito
     alert(`🎉 ¡Archivo subido exitosamente a Google Drive!\n\n📁 Nombre: ${nombreArchivo}\n📊 Tipo: ${formato.toUpperCase()}\n📅 Trimestre: ${detectarTrimestre()}`);
@@ -2432,13 +2559,18 @@ const subirAGoogleDrive = async (datosIn, nombreArchivoBase, formato = 'excel') 
       mensajeUsuario = `❌ ${error.message}`;
     }
     
+    trackEvent('error_subida_drive_final', {
+      error: error.message,
+      tipo_error: error.name
+    });
+    
     alert(mensajeUsuario);
     throw error;
   }
 };
 
 // Componente OpcionesExportacion CORREGIDO
-function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
+function OpcionesExportacion({ datos, nombreArchivo, onExportar, trackEvent }) {
   const [mostrarOpciones, setMostrarOpciones] = useState(false);
   const [mostrarDrive, setMostrarDrive] = useState(false);
   const [exportando, setExportando] = useState('');
@@ -2453,15 +2585,20 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
       if (destino === 'descarga') {
         switch (formato) {
           case 'excel':
-            exportarAExcel(datos, nombreArchivo);
+            exportarAExcel(datos, nombreArchivo, trackEvent);
             break;
           case 'word':
-            await exportarAWord(datos, nombreArchivo);
+            await exportarAWord(datos, nombreArchivo, trackEvent);
             break;
         }
+        trackEvent('exportacion_exitosa', {
+          formato: formato,
+          destino: destino,
+          nombre_archivo: nombreArchivo
+        });
         alert(`✅ Descarga completada: ${formato.toUpperCase()}`);
       } else if (destino === 'drive') {
-        await subirAGoogleDrive(datos, nombreArchivo, formato);
+        await subirAGoogleDrive(datos, nombreArchivo, formato, trackEvent);
         // El alert ya se muestra en subirAGoogleDrive
       }
       
@@ -2471,7 +2608,11 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
       
     } catch (error) {
       console.error(`Error en exportación ${formato} a ${destino}:`, error);
-      // El error ya se muestra en las funciones individuales
+      trackEvent('error_exportacion', {
+        formato: formato,
+        destino: destino,
+        error: error.message
+      });
     } finally {
       setExportando('');
     }
@@ -2501,6 +2642,7 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
         onClick={() => {
           setMostrarOpciones((v) => !v);
           setMostrarDrive(false);
+          trackEvent('boton_exportar_click');
         }}
         disabled={!!exportando}
         className={`bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-bold flex items-center gap-2 ${
@@ -2545,7 +2687,10 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
           <div className="border-t border-gray-200">
             {!mostrarDrive ? (
               <button
-                onClick={() => setMostrarDrive(true)}
+                onClick={() => {
+                  setMostrarDrive(true);
+                  trackEvent('opcion_drive_seleccionada');
+                }}
                 className="w-full px-4 py-3 text-left hover:bg-yellow-50 flex items-center gap-2 text-sm"
               >
                 <span className="text-yellow-600">☁️</span>
@@ -2587,7 +2732,7 @@ function OpcionesExportacion({ datos, nombreArchivo, onExportar }) {
 }
 
 // NUEVO COMPONENTE: Hábitos y Aptitudes MEJORADO
-const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos }) => {
+const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos, trackEvent }) => {
   const [habitosEstudiantes, setHabitosEstudiantes] = useState({});
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date().toISOString().split('T')[0]);
 
@@ -2618,11 +2763,21 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
       };
       setHabitosEstudiantes(nuevosHabitos);
 
+      // Track del evento
+      trackEvent('habitos_actualizados', {
+        estudiante_id: estudianteId,
+        valor: valor,
+        fecha: fechaSeleccionada
+      });
+
       // Llamar a la función de actualización
       await onActualizarHabitos(estudianteId, valor);
       
     } catch (error) {
       console.error('Error actualizando hábitos:', error);
+      trackEvent('error_habitos', {
+        error: error.message
+      });
       alert('Error al actualizar hábitos y aptitudes');
     }
   };
@@ -2666,6 +2821,7 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
             }))
           })}
           nombreArchivo={`Habitos_Aptitudes_${claseSeleccionada?.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
+          trackEvent={trackEvent}
         />
       </div>
 
@@ -2808,7 +2964,7 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos 
 };
 
 // NUEVO COMPONENTE: Modal Libreta Digital
-const ModalLibretaDigital = ({ mostrar, onCerrar }) => {
+const ModalLibretaDigital = ({ mostrar, onCerrar, trackEvent }) => {
   if (!mostrar) return null;
 
   return (
@@ -2846,7 +3002,10 @@ const ModalLibretaDigital = ({ mostrar, onCerrar }) => {
           </div>
           
           <button
-            onClick={onCerrar}
+            onClick={() => {
+              trackEvent('libreta_digital_cerrada');
+              onCerrar();
+            }}
             className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold w-full"
           >
             Entendido
@@ -2858,6 +3017,9 @@ const ModalLibretaDigital = ({ mostrar, onCerrar }) => {
 };
 
 export default function AsistenteProfesor() {
+  // === SISTEMA DE ANALYTICS INTEGRADO ===
+  const { trackPageView, trackEvent, setUserAnalytics } = useAnalytics();
+  
   const [usuario, setUsuario] = useState(null);
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [mostrarRegistro, setMostrarRegistro] = useState(false);
@@ -2900,19 +3062,59 @@ export default function AsistenteProfesor() {
   const [mostrarModalRetiro, setMostrarModalRetiro] = useState(false);
   const [estudianteARetirar, setEstudianteARetirar] = useState(null);
 
+  // === ANALYTICS: Track page views ===
+  useEffect(() => {
+    const screenName = getScreenName(view);
+    trackPageView(screenName, {
+      user_id: usuario?.uid,
+      user_email: usuario?.email,
+      clase_activa: claseSeleccionada?.nombre || 'ninguna'
+    });
+  }, [view, usuario, claseSeleccionada]);
+
+  // === ANALYTICS: Set user properties ===
+  useEffect(() => {
+    setUserAnalytics(usuario);
+  }, [usuario]);
+
+  const getScreenName = (currentView) => {
+    const screenMap = {
+      'home': 'Inicio',
+      'clase': 'Gestión de Clase', 
+      'asistencia': 'Registro de Asistencia',
+      'calificaciones': 'Gestión de Calificaciones',
+      'habitos': 'Hábitos y Aptitudes',
+      'porcentajes': 'Cuadro de Porcentajes',
+      'progreso': 'Tablero de Progreso',
+      'planificacion': 'Planificación con IA'
+    };
+    return screenMap[currentView] || currentView;
+  };
+
   // Efecto para manejar el estado de autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setUsuario({ 
+        const userData = { 
           email: user.email, 
           nombre: user.displayName || user.email.split('@')[0],
           uid: user.uid 
+        };
+        setUsuario(userData);
+        
+        // Track del login exitoso
+        trackEvent('login_exitoso', {
+          user_id: user.uid,
+          email: user.email
         });
+        
         cargarClases(user.uid);
       } else {
         setUsuario(null);
         setClases([]);
+        
+        // Track del logout
+        trackEvent('logout');
       }
     });
     return () => unsubscribe();
@@ -2933,8 +3135,16 @@ export default function AsistenteProfesor() {
         clasesData.push({ id: doc.id, ...doc.data() });
       });
       setClases(clasesData);
+      
+      // Track de carga de clases
+      trackEvent('clases_cargadas', {
+        cantidad_clases: clasesData.length
+      });
     } catch (error) {
       console.error('Error cargando clases:', error);
+      trackEvent('error_carga_clases', {
+        error: error.message
+      });
     }
   };
 
@@ -2960,21 +3170,36 @@ export default function AsistenteProfesor() {
     
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      setUsuario({ 
+      const userData = { 
         email: userCredential.user.email, 
         nombre: nombreUsuario,
         uid: userCredential.user.uid 
-      });
+      };
+      setUsuario(userData);
       setMostrarRegistro(false);
+      
+      // Track del registro exitoso
+      trackEvent('registro_exitoso', {
+        user_id: userCredential.user.uid,
+        email: userCredential.user.email,
+        nombre: nombreUsuario
+      });
+      
       limpiarFormulariosAuth();
     } catch (error) {
+      let errorMessage = 'Error al registrar: ' + error.message;
       if (error.code === 'auth/email-already-in-use') {
-        setErrorAuth('Este correo ya está registrado');
+        errorMessage = 'Este correo ya está registrado';
       } else if (error.code === 'auth/weak-password') {
-        setErrorAuth('La contraseña es muy débil');
-      } else {
-        setErrorAuth('Error al registrar: ' + error.message);
+        errorMessage = 'La contraseña es muy débil';
       }
+      setErrorAuth(errorMessage);
+      
+      // Track del error de registro
+      trackEvent('registro_error', {
+        error: error.code,
+        email: email
+      });
     } finally {
       setCargandoAuth(false);
     }
@@ -2992,21 +3217,35 @@ export default function AsistenteProfesor() {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setUsuario({ 
+      const userData = { 
         email: userCredential.user.email, 
         nombre: userCredential.user.displayName || userCredential.user.email.split('@')[0],
         uid: userCredential.user.uid 
-      });
+      };
+      setUsuario(userData);
       setMostrarLogin(false);
+      
+      // Track del login exitoso
+      trackEvent('login_exitoso', {
+        user_id: userCredential.user.uid,
+        email: userCredential.user.email
+      });
+      
       limpiarFormulariosAuth();
     } catch (error) {
+      let errorMessage = 'Error al iniciar sesión: ' + error.message;
       if (error.code === 'auth/user-not-found') {
-        setErrorAuth('Usuario no encontrado');
+        errorMessage = 'Usuario no encontrado';
       } else if (error.code === 'auth/wrong-password') {
-        setErrorAuth('Contraseña incorrecta');
-      } else {
-        setErrorAuth('Error al iniciar sesión: ' + error.message);
+        errorMessage = 'Contraseña incorrecta';
       }
+      setErrorAuth(errorMessage);
+      
+      // Track del error de login
+      trackEvent('login_error', {
+        error: error.code,
+        email: email
+      });
     } finally {
       setCargandoAuth(false);
     }
@@ -3019,8 +3258,14 @@ export default function AsistenteProfesor() {
       setView('home');
       setClaseSeleccionada(null);
       setClases([]);
+      
+      // Track del logout
+      trackEvent('logout_manual');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+      trackEvent('logout_error', {
+        error: error.message
+      });
     }
   };
 
@@ -3036,6 +3281,12 @@ export default function AsistenteProfesor() {
   const abrirModalRetiro = (estudiante) => {
     setEstudianteARetirar(estudiante);
     setMostrarModalRetiro(true);
+    
+    // Track del intento de retiro
+    trackEvent('retiro_estudiante_intento', {
+      estudiante: estudiante.nombre,
+      clase: claseSeleccionada?.nombre
+    });
   };
 
   // FUNCIÓN NUEVA: Cerrar modal de confirmación
@@ -3074,10 +3325,19 @@ export default function AsistenteProfesor() {
       );
       setClases(clasesActualizadas);
       
+      // Track del retiro exitoso
+      trackEvent('estudiante_retirado', {
+        estudiante: estudianteARetirar.nombre,
+        clase: claseSeleccionada?.nombre
+      });
+      
       alert('Estudiante marcado como retirado');
       cerrarModalRetiro();
     } catch (error) {
       console.error('Error retirando estudiante:', error);
+      trackEvent('error_retiro_estudiante', {
+        error: error.message
+      });
       alert('Error al retirar estudiante');
     }
   };
@@ -3090,6 +3350,13 @@ export default function AsistenteProfesor() {
     }
 
     setGenerandoPlan(true);
+
+    // Track del inicio de generación
+    trackEvent('generacion_plan_iniciada', {
+      materia: materia,
+      grado: gradoPlan,
+      trimestre: trimestre
+    });
 
     try {
       const BACKEND_URL = 'https://bringo-edu-backend-2.onrender.com/api/generate-plan';
@@ -3127,8 +3394,22 @@ export default function AsistenteProfesor() {
         generadoPorIA: true
       });
 
+      // Track de generación exitosa
+      trackEvent('generacion_plan_exitosa', {
+        materia: materia,
+        grado: gradoPlan,
+        cantidad_contenidos: data.contenidos?.length || 0
+      });
+
     } catch (error) {
       console.error('❌ Error al generar plan:', error);
+      
+      // Track del error
+      trackEvent('generacion_plan_error', {
+        error: error.message,
+        materia: materia
+      });
+      
       alert(`Error al generar el plan: ${error.message}`);
     } finally {
       setGenerandoPlan(false);
@@ -3138,6 +3419,13 @@ export default function AsistenteProfesor() {
   // FUNCIÓN MEJORADA: Descargar plan trimestral con múltiples formatos
   const descargarPlan = (formato = 'txt') => {
     if (!planGenerado) return;
+
+    // Track de la descarga
+    trackEvent('plan_descargado', {
+      formato: formato,
+      materia: planGenerado.asignatura || materia,
+      trimestre: planGenerado.trimestre || trimestre
+    });
 
     let contenido = `PLAN TRIMESTRAL - BRINGO EDU\n`;
     contenido += `${'='.repeat(80)}\n\n`;
@@ -3308,6 +3596,16 @@ export default function AsistenteProfesor() {
       
       const docRef = await addDoc(collection(db, 'clases'), nuevaClase);
       setClases([...clases, { id: docRef.id, ...nuevaClase }]);
+      
+      // Track de la creación de clase
+      trackEvent('clase_creada', {
+        clase_id: docRef.id,
+        nombre_clase: nuevaClase.nombre,
+        materia: nombreClase,
+        grado: grado,
+        seccion: seccion
+      });
+      
       setNombreClase('');
       setGrado('');
       setSeccion('');
@@ -3316,6 +3614,9 @@ export default function AsistenteProfesor() {
       
     } catch (error) {
       console.error('❌ Error agregando clase:', error);
+      trackEvent('error_creacion_clase', {
+        error: error.message
+      });
       alert(`Error al crear la clase: ${error.message}`);
     }
   };
@@ -3329,8 +3630,16 @@ export default function AsistenteProfesor() {
           setClaseSeleccionada(null);
           setView('home');
         }
+        
+        // Track de la eliminación
+        trackEvent('clase_eliminada', {
+          clase_id: id
+        });
       } catch (error) {
         console.error('Error eliminando clase:', error);
+        trackEvent('error_eliminacion_clase', {
+          error: error.message
+        });
         alert('Error al eliminar la clase');
       }
     }
@@ -3346,6 +3655,13 @@ export default function AsistenteProfesor() {
     setClaseSeleccionada(clase);
     setEstudiantes(clase.estudiantes || []);
     setView('clase');
+    
+    // Track de la selección de clase
+    trackEvent('clase_seleccionada', {
+      clase_id: clase.id,
+      nombre_clase: clase.nombre,
+      cantidad_estudiantes: clase.estudiantes?.length || 0
+    });
   };
 
   // FUNCIÓN MEJORADA: Agregar estudiante
@@ -3382,9 +3698,20 @@ export default function AsistenteProfesor() {
           : c
       );
       setClases(clasesActualizadas);
+      
+      // Track del estudiante agregado
+      trackEvent('estudiante_agregado', {
+        estudiante: nombreEstudiante,
+        clase: claseSeleccionada?.nombre,
+        total_estudiantes: nuevosEstudiantes.length
+      });
+      
       setNombreEstudiante('');
     } catch (error) {
       console.error('Error agregando estudiante:', error);
+      trackEvent('error_agregar_estudiante', {
+        error: error.message
+      });
       alert('Error al agregar estudiante');
     }
   };
@@ -3424,8 +3751,19 @@ export default function AsistenteProfesor() {
           : c
       );
       setClases(clasesActualizadas);
+      
+      // Track de la asistencia
+      trackEvent('asistencia_marcada', {
+        estudiante_id: estudianteId,
+        fecha: fecha,
+        estado: estado,
+        clase: claseSeleccionada?.nombre
+      });
     } catch (error) {
       console.error('Error marcando asistencia:', error);
+      trackEvent('error_asistencia', {
+        error: error.message
+      });
     }
   };
 
@@ -3465,6 +3803,9 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
     } catch (error) {
       console.error('Error agregando calificación:', error);
+      trackEvent('error_calificacion', {
+        error: error.message
+      });
       alert('Error al agregar calificación');
     }
   };
@@ -3501,6 +3842,9 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
     } catch (error) {
       console.error('Error actualizando calificación:', error);
+      trackEvent('error_actualizar_calificacion', {
+        error: error.message
+      });
     }
   };
 
@@ -3533,6 +3877,9 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
     } catch (error) {
       console.error('Error eliminando calificación:', error);
+      trackEvent('error_eliminar_calificacion', {
+        error: error.message
+      });
     }
   };
 
@@ -3564,6 +3911,9 @@ export default function AsistenteProfesor() {
       setClases(clasesActualizadas);
     } catch (error) {
       console.error('Error actualizando hábitos:', error);
+      trackEvent('error_actualizar_habitos', {
+        error: error.message
+      });
       throw error;
     }
   };
@@ -3585,8 +3935,17 @@ export default function AsistenteProfesor() {
           : c
       );
       setClases(clasesActualizadas);
+      
+      // Track de la eliminación
+      trackEvent('estudiante_eliminado', {
+        estudiante_id: id,
+        clase: claseSeleccionada?.nombre
+      });
     } catch (error) {
       console.error('Error eliminando estudiante:', error);
+      trackEvent('error_eliminar_estudiante', {
+        error: error.message
+      });
       alert('Error al eliminar estudiante');
     }
   };
@@ -3635,6 +3994,12 @@ export default function AsistenteProfesor() {
       ...prev,
       [estudianteId]: !prev[estudianteId]
     }));
+    
+    // Track de la expansión
+    trackEvent('estudiante_expandido', {
+      estudiante_id: estudianteId,
+      expandido: !expandido[estudianteId]
+    });
   };
 
   // FUNCIÓN CORREGIDA: Buscar y redirigir estudiante
@@ -3649,6 +4014,12 @@ export default function AsistenteProfesor() {
       ...prev,
       [estudiante.id]: true
     }));
+    
+    // Track de la búsqueda exitosa
+    trackEvent('busqueda_estudiante_exitosa', {
+      estudiante: estudiante.nombre,
+      clase: estudiante.claseNombre
+    });
     
     // Scroll a la sección del estudiante
     setTimeout(() => {
@@ -3716,13 +4087,13 @@ export default function AsistenteProfesor() {
 
     switch (formato) {
       case 'excel':
-        exportarAExcel(datosProgreso, nombreArchivo);
+        exportarAExcel(datosProgreso, nombreArchivo, trackEvent);
         break;
       case 'word':
-        exportarAWord(datosProgreso, nombreArchivo);
+        exportarAWord(datosProgreso, nombreArchivo, trackEvent);
         break;
       case 'drive':
-        subirAGoogleDrive(datosProgreso, nombreArchivo);
+        subirAGoogleDrive(datosProgreso, nombreArchivo, 'excel', trackEvent);
         break;
       default:
         break;
@@ -3763,6 +4134,7 @@ export default function AsistenteProfesor() {
         iniciarSesion={iniciarSesion}
         limpiarFormulariosAuth={limpiarFormulariosAuth}
         setMostrarRegistro={setMostrarRegistro}
+        trackEvent={trackEvent}
       />
 
       <ModalRegistro
@@ -3781,11 +4153,13 @@ export default function AsistenteProfesor() {
         registrarUsuario={registrarUsuario}
         limpiarFormulariosAuth={limpiarFormulariosAuth}
         setMostrarLogin={setMostrarLogin}
+        trackEvent={trackEvent}
       />
 
       <ModalLibretaDigital
         mostrar={mostrarLibretaDigital}
         onCerrar={() => setMostrarLibretaDigital(false)}
+        trackEvent={trackEvent}
       />
 
       {/* NUEVO MODAL: Confirmación para retirar estudiante */}
@@ -3825,14 +4199,20 @@ export default function AsistenteProfesor() {
             ) : (
               <>
                 <button
-                  onClick={() => setMostrarLogin(true)}
+                  onClick={() => {
+                    setMostrarLogin(true);
+                    trackEvent('boton_login_click');
+                  }}
                   className="flex items-center gap-2 bg-white text-purple-600 hover:bg-purple-50 px-4 py-2 rounded-lg transition font-semibold"
                 >
                   <LogIn className="w-4 h-4" />
                   <span className="hidden sm:inline">Iniciar Sesión</span>
                 </button>
                 <button
-                  onClick={() => setMostrarRegistro(true)}
+                  onClick={() => {
+                    setMostrarRegistro(true);
+                    trackEvent('boton_registro_click');
+                  }}
                   className="flex items-center gap-2 bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg transition font-semibold"
                 >
                   <User className="w-4 h-4" />
@@ -3849,7 +4229,10 @@ export default function AsistenteProfesor() {
         <div className="container mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto py-2">
             <button
-              onClick={() => setView('home')}
+              onClick={() => {
+                setView('home');
+                trackEvent('navegacion_home');
+              }}
               className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                 view === 'home' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -3861,7 +4244,10 @@ export default function AsistenteProfesor() {
             {usuario && claseSeleccionada && (
               <>
                 <button
-                  onClick={() => setView('clase')}
+                  onClick={() => {
+                    setView('clase');
+                    trackEvent('navegacion_clase');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'clase' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3870,7 +4256,10 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Estudiantes</span>
                 </button>
                 <button
-                  onClick={() => setView('asistencia')}
+                  onClick={() => {
+                    setView('asistencia');
+                    trackEvent('navegacion_asistencia');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'asistencia' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3879,7 +4268,10 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Asistencia</span>
                 </button>
                 <button
-                  onClick={() => setView('calificaciones')}
+                  onClick={() => {
+                    setView('calificaciones');
+                    trackEvent('navegacion_calificaciones');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'calificaciones' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3888,7 +4280,10 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Calificaciones</span>
                 </button>
                 <button
-                  onClick={() => setView('habitos')}
+                  onClick={() => {
+                    setView('habitos');
+                    trackEvent('navegacion_habitos');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'habitos' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3897,7 +4292,10 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Hábitos</span>
                 </button>
                 <button
-                  onClick={() => setView('porcentajes')}
+                  onClick={() => {
+                    setView('porcentajes');
+                    trackEvent('navegacion_porcentajes');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'porcentajes' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3906,7 +4304,10 @@ export default function AsistenteProfesor() {
                   <span className="text-sm md:text-base">Cuadro de %</span>
                 </button>
                 <button
-                  onClick={() => setView('progreso')}
+                  onClick={() => {
+                    setView('progreso');
+                    trackEvent('navegacion_progreso');
+                  }}
                   className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                     view === 'progreso' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
@@ -3918,7 +4319,10 @@ export default function AsistenteProfesor() {
             )}
             
             <button
-              onClick={() => setView('planificacion')}
+              onClick={() => {
+                setView('planificacion');
+                trackEvent('navegacion_planificacion');
+              }}
               className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
                 view === 'planificacion' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -3929,7 +4333,10 @@ export default function AsistenteProfesor() {
 
             {/* NUEVO BOTÓN: Libreta Digital */}
             <button
-              onClick={() => setMostrarLibretaDigital(true)}
+              onClick={() => {
+                setMostrarLibretaDigital(true);
+                trackEvent('boton_libreta_digital');
+              }}
               className="flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700"
             >
               <BookOpen className="w-5 h-5" />
@@ -3947,6 +4354,7 @@ export default function AsistenteProfesor() {
             onBuscarEstudiante={buscarYRedirigirEstudiante}
             busquedaEstudiante={busquedaEstudiante}
             setBusquedaEstudiante={setBusquedaEstudiante}
+            trackEvent={trackEvent}
           />
         </div>
       )}
@@ -3971,13 +4379,19 @@ export default function AsistenteProfesor() {
                       </p>
                       <div className="flex gap-3 flex-wrap">
                         <button
-                          onClick={() => setMostrarLogin(true)}
+                          onClick={() => {
+                            setMostrarLogin(true);
+                            trackEvent('cta_login_desde_home');
+                          }}
                           className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition font-semibold"
                         >
                           Iniciar Sesión
                         </button>
                         <button
-                          onClick={() => setMostrarRegistro(true)}
+                          onClick={() => {
+                            setMostrarRegistro(true);
+                            trackEvent('cta_registro_desde_home');
+                          }}
                           className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-semibold"
                         >
                           Registrarse
@@ -4090,6 +4504,7 @@ export default function AsistenteProfesor() {
                 onClick={() => {
                   setClaseSeleccionada(null);
                   setView('home');
+                  trackEvent('volver_inicio_desde_clase');
                 }}
                 className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition font-semibold"
               >
@@ -4197,6 +4612,7 @@ export default function AsistenteProfesor() {
                     }))
                   })}
                   nombreArchivo={`Asistencia_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${fechaActual}`}
+                  trackEvent={trackEvent}
                 />
               </div>
             </div>
@@ -4352,6 +4768,7 @@ export default function AsistenteProfesor() {
                     }))
                   })}
                   nombreArchivo={`Calificaciones_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
+                  trackEvent={trackEvent}
                 />
              </div>
             </div>
@@ -4421,6 +4838,7 @@ export default function AsistenteProfesor() {
                           usuario={usuario}
                           actualizarCalificacion={actualizarCalificacion}
                           tituloEvaluacion={tituloEvaluacion}
+                          trackEvent={trackEvent}
                         />
                       ))}
                     </tbody>
@@ -4650,6 +5068,7 @@ export default function AsistenteProfesor() {
             estudiantes={estudiantes}
             claseSeleccionada={claseSeleccionada}
             onActualizarHabitos={actualizarHabitos}
+            trackEvent={trackEvent}
           />
         )}
 
@@ -4659,6 +5078,7 @@ export default function AsistenteProfesor() {
             estudiantes={estudiantes} 
             calcularPromedioFinal={calcularPromedioFinal}
             claseSeleccionada={claseSeleccionada}
+            trackEvent={trackEvent}
           />
         )}
 
@@ -4695,6 +5115,7 @@ export default function AsistenteProfesor() {
                 })}
                 nombreArchivo={`Tablero_Progreso_${claseSeleccionada.nombre.replace(/\s+/g, '_')}_${detectarTrimestre().replace(/\s+/g, '_')}`}
                 onExportar={exportarProgreso}
+                trackEvent={trackEvent}
               />
             </div>
 
@@ -5021,9 +5442,13 @@ export default function AsistenteProfesor() {
                         (planGenerado.trimestre || trimestre || 'Trimestre')
                         .replace(/\s+/g, '_')
                       }`}
+                      trackEvent={trackEvent}
                     />
                     <button
-                      onClick={() => setPlanGenerado(null)}
+                      onClick={() => {
+                        setPlanGenerado(null);
+                        trackEvent('nuevo_plan_iniciado');
+                      }}
                       className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition font-bold"
                     >
                       Nuevo Plan
