@@ -13,7 +13,7 @@ export class PremiumService {
         const suscripcion = userData.suscripcion || {};
         
         if (suscripcion.estado === 'active') {
-          return { tienePremium: true, diasRestantes: 0, plan: suscripcion.plan };
+          return { tienePremium: false, diasRestantes: 0, plan: suscripcion.plan };
         }
         
         // Verificar período de prueba (14 días)
@@ -39,7 +39,7 @@ export class PremiumService {
           fechaRegistro: new Date().toISOString(),
           suscripcion: { estado: 'trial' }
         });
-        return { tienePremium: true, diasRestantes: 14, enPrueba: true };
+        return { tienePremium: false, diasRestantes: 14, enPrueba: true };
       }
       
       return { tienePremium: false, diasRestantes: 0 };
