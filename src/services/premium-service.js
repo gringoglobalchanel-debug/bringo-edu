@@ -1,7 +1,5 @@
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-
-const db = getFirestore();
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase-config';
 
 export class PremiumService {
   static async verificarSuscripcion(usuario) {
@@ -15,7 +13,7 @@ export class PremiumService {
         const suscripcion = userData.suscripcion || {};
         
         if (suscripcion.estado === 'active') {
-          return { tienePremium: false, diasRestantes: 0, plan: suscripcion.plan };
+          return { tienePremium: true, diasRestantes: 0, plan: suscripcion.plan };
         }
         
         // Verificar período de prueba (14 días)
@@ -41,7 +39,7 @@ export class PremiumService {
           fechaRegistro: new Date().toISOString(),
           suscripcion: { estado: 'trial' }
         });
-        return { tienePremium: false, diasRestantes: 14, enPrueba: true };
+        return { tienePremium: true, diasRestantes: 14, enPrueba: true };
       }
       
       return { tienePremium: false, diasRestantes: 0 };
@@ -77,4 +75,3 @@ export class PremiumService {
     return this.getVistasPremium().includes(vista);
   }
 }
-// Fri Nov 14 17:21:22 EST 2025 - free mode
