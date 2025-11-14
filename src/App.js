@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX, BookOpen, Activity } from 'lucide-react';
+import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX, Activity } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
@@ -2963,59 +2963,6 @@ const HabitosAptitudes = ({ estudiantes, claseSeleccionada, onActualizarHabitos,
   );
 };
 
-// NUEVO COMPONENTE: Modal Libreta Digital
-const ModalLibretaDigital = ({ mostrar, onCerrar, trackEvent }) => {
-  if (!mostrar) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full transform transition-all">
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-6 rounded-t-2xl text-center">
-          <div className="inline-block bg-white rounded-full p-4 mb-4 shadow-lg">
-            <BookOpen className="w-8 h-8 text-purple-600" />
-          </div>
-          <h3 className="text-2xl font-bold text-white mb-2">Libreta Digital</h3>
-          <p className="text-purple-100">Integración en desarrollo</p>
-        </div>
-        
-        <div className="p-6 text-center">
-          <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 mb-4">
-            <div className="text-4xl mb-4">🚧</div>
-            <h4 className="text-xl font-bold text-yellow-800 mb-2">¡Próximamente!</h4>
-            <p className="text-yellow-700">
-              Estamos trabajando en la integración con tu libreta digital oficial.
-            </p>
-          </div>
-          
-          <p className="text-gray-600 mb-6">
-            Pronto podrás pasar tus notas y asistencia a tu libreta digital con unos pocos clicks.
-          </p>
-          
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h5 className="font-bold text-blue-800 mb-2">Características que incluirá:</h5>
-            <ul className="text-sm text-blue-700 text-left space-y-1">
-              <li>✅ Sincronización automática de calificaciones</li>
-              <li>✅ Exportación de asistencia</li>
-              <li>✅ Integración con sistemas oficiales</li>
-              <li>✅ Reportes automáticos</li>
-            </ul>
-          </div>
-          
-          <button
-            onClick={() => {
-              trackEvent('libreta_digital_cerrada');
-              onCerrar();
-            }}
-            className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition font-bold w-full"
-          >
-            Entendido
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 export default function AsistenteProfesor() {
   // === SISTEMA DE ANALYTICS INTEGRADO ===
   const { trackPageView, trackEvent, setUserAnalytics } = useAnalytics();
@@ -3054,9 +3001,6 @@ export default function AsistenteProfesor() {
 
   // Estado para búsqueda de estudiantes
   const [busquedaEstudiante, setBusquedaEstudiante] = useState('');
-
-  // Estado para modal de libreta digital
-  const [mostrarLibretaDigital, setMostrarLibretaDigital] = useState(false);
 
   // NUEVO ESTADO: Modal de confirmación para retirar estudiante
   const [mostrarModalRetiro, setMostrarModalRetiro] = useState(false);
@@ -4156,12 +4100,6 @@ export default function AsistenteProfesor() {
         trackEvent={trackEvent}
       />
 
-      <ModalLibretaDigital
-        mostrar={mostrarLibretaDigital}
-        onCerrar={() => setMostrarLibretaDigital(false)}
-        trackEvent={trackEvent}
-      />
-
       {/* NUEVO MODAL: Confirmación para retirar estudiante */}
       <ModalConfirmacionRetiro
         mostrar={mostrarModalRetiro}
@@ -4330,8 +4268,7 @@ export default function AsistenteProfesor() {
               <Sparkles className="w-5 h-5" />
               <span className="text-sm md:text-base">Plan IA</span>
             </button>
-
-                      </div>
+          </div>
         </div>
       </nav>
 
@@ -4574,7 +4511,7 @@ export default function AsistenteProfesor() {
 
         {view === 'asistencia' && claseSeleccionada && (
           <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div className="flex flex-col md:flexRow justify-between items-start md:items-center gap-4 mb-6">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
                 <Calendar className="w-8 h-8 text-purple-600" />
                 Asistencia - {claseSeleccionada.nombre} - {detectarTrimestre()}
