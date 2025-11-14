@@ -12,6 +12,7 @@ const ModalSuscripcion = ({
   const [planSeleccionado, setPlanSeleccionado] = useState('monthly');
 
   if (!mostrar) return null;
+  console.log("🎯 ModalSuscripcion RENDER - mostrar:", mostrar, "usuario:", usuario?.email);
 
   const planes = [
     {
