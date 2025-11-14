@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Download, AlertCircle, Users, Home, ChevronDown, ChevronUp, ClipboardList, Calendar, Sparkles, User, LogOut, LogIn, TrendingUp, BarChart3, Target, Award, AlertTriangle, Search, Share, Eye, EyeOff, PieChart, UserX, Activity } from 'lucide-react';
+import { usePremium } from "./hooks/usePremium";
+import { 
+  BannerUpgrade, 
+  ModalSuscripcion, 
+  NavegacionPremium, 
+  AlertaLimiteClases 
+} from "./components/premium";
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
