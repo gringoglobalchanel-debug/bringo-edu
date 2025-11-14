@@ -4331,18 +4331,7 @@ export default function AsistenteProfesor() {
               <span className="text-sm md:text-base">Plan IA</span>
             </button>
 
-            {/* NUEVO BOTÓN: Libreta Digital */}
-            <button
-              onClick={() => {
-                setMostrarLibretaDigital(true);
-                trackEvent('boton_libreta_digital');
-              }}
-              className="flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap bg-gradient-to-r from-green-600 to-teal-600 text-white hover:from-green-700 hover:to-teal-700"
-            >
-              <BookOpen className="w-5 h-5" />
-              <span className="text-sm md:text-base">Libreta Digital</span>
-            </button>
-          </div>
+                      </div>
         </div>
       </nav>
 
