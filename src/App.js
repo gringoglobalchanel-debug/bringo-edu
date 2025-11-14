@@ -2987,6 +2987,16 @@ export default function AsistenteProfesor() {
   const [view, setView] = useState('home');
   const [clases, setClases] = useState([]);
   const [claseSeleccionada, setClaseSeleccionada] = useState(null);
+const [mostrarSuscripcion, setMostrarSuscripcion] = useState(false);
+const { 
+  tienePremium, 
+  diasRestantes, 
+  enPrueba, 
+  cargando: cargandoPremium,
+  puedeCrearClase,
+  esVistaDisponible,
+  activarSuscripcion
+} = usePremium(usuario, clases);
   const [nombreClase, setNombreClase] = useState('');
   const [grado, setGrado] = useState('');
   const [seccion, setSeccion] = useState('');
@@ -4169,115 +4179,23 @@ export default function AsistenteProfesor() {
         </div>
       </header>
 
-      {/* NAVEGACIÓN MEJORADA CON NUEVA PESTAÑA */}
-      <nav className="bg-white shadow-md sticky top-0 z-40">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1 overflow-x-auto py-2">
-            <button
-              onClick={() => {
-                setView('home');
-                trackEvent('navegacion_home');
-              }}
-              className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                view === 'home' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="text-sm md:text-base">Inicio</span>
-            </button>
-            
-            {usuario && claseSeleccionada && (
-              <>
-                <button
-                  onClick={() => {
-                    setView('clase');
-                    trackEvent('navegacion_clase');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'clase' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Users className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Estudiantes</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setView('asistencia');
-                    trackEvent('navegacion_asistencia');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'asistencia' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Calendar className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Asistencia</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setView('calificaciones');
-                    trackEvent('navegacion_calificaciones');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'calificaciones' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <ClipboardList className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Calificaciones</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setView('habitos');
-                    trackEvent('navegacion_habitos');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'habitos' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Activity className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Hábitos</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setView('porcentajes');
-                    trackEvent('navegacion_porcentajes');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'porcentajes' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <PieChart className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Cuadro de %</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setView('progreso');
-                    trackEvent('navegacion_progreso');
-                  }}
-                  className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                    view === 'progreso' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <TrendingUp className="w-5 h-5" />
-                  <span className="text-sm md:text-base">Progreso</span>
-                </button>
-              </>
-            )}
-            
-            <button
-              onClick={() => {
-                setView('planificacion');
-                trackEvent('navegacion_planificacion');
-              }}
-              className={`flex items-center gap-2 px-4 md:px-6 py-3 rounded-lg font-semibold transition whitespace-nowrap ${
-                view === 'planificacion' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Sparkles className="w-5 h-5" />
-              <span className="text-sm md:text-base">Plan IA</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* NAVEGACIÓN PREMIUM */}
+<NavegacionPremium
+  view={view}
+  setView={setView}
+  tienePremium={tienePremium}
+  onUpgrade={() => setMostrarSuscripcion(true)}
+  trackEvent={trackEvent}
+/>
+
+{/* BANNER UPGRADE */}
+{usuario && (
+  <BannerUpgrade
+    diasRestantes={diasRestantes}
+    onUpgrade={() => setMostrarSuscripcion(true)}
+    trackEvent={trackEvent}
+  />
+)}
 
       {/* ✅ BARRA DE BÚSQUEDA DE ESTUDIANTES - AHORA FUERA DEL CUADRO DE CLASES, JUSTO DEBAJO DE LAS PESTAÑAS */}
       {usuario && clases.length > 0 && (
@@ -5590,6 +5508,20 @@ export default function AsistenteProfesor() {
                 </div>
               </div>
             )}
+{/* MODAL SUSCRIPCIÓN */}
+<ModalSuscripcion
+  mostrar={mostrarSuscripcion}
+  onCerrar={() => setMostrarSuscripcion(false)}
+  onSuscribirse={async (plan) => {
+    const exito = await activarSuscripcion(plan);
+    if (exito) {
+      trackEvent('suscripcion_activada', { plan });
+    }
+  }}
+  trackEvent={trackEvent}
+  usuario={usuario}
+/>
+
           </div>
         )}
       </main>
