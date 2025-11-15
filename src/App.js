@@ -2987,7 +2987,7 @@ export default function AsistenteProfesor() {
   const [view, setView] = useState('home');
   const [clases, setClases] = useState([]);
   const [claseSeleccionada, setClaseSeleccionada] = useState(null);
-const [mostrarSuscripcion, setMostrarSuscripcion] = useState(false);
+ const [mostrarSuscripcion, setMostrarSuscripcion] = useState(false);
 const { 
   tienePremium, 
   diasRestantes, 
@@ -2997,18 +2997,23 @@ const {
   esVistaDisponible,
   activarSuscripcion
 } = usePremium(usuario, clases);
-  const [nombreClase, setNombreClase] = useState('');
-  const [grado, setGrado] = useState('');
-  const [seccion, setSeccion] = useState('');
-  const [nombreProfesorClase, setNombreProfesorClase] = useState('');
-  const [institucionClase, setInstitucionClase] = useState('');
-  const [estudiantes, setEstudiantes] = useState([]);
-  const [nombreEstudiante, setNombreEstudiante] = useState('');
-  const [expandido, setExpandido] = useState({});
-  const [fechaActual, setFechaActual] = useState(new Date().toISOString().split('T')[0]);
-  const [tituloEvaluacion, setTituloEvaluacion] = useState('');
-  
-  const [nombreProfesor, setNombreProfesor] = useState('');
+
+// Función que SÍ funciona
+const abrirModalSuscripcion = () => {
+  console.log("🔓 Abriendo modal de suscripción");
+  setMostrarSuscripcion(true);
+};
+
+const [nombreClase, setNombreClase] = useState('');
+const [grado, setGrado] = useState('');
+const [seccion, setSeccion] = useState('');
+const [nombreProfesorClase, setNombreProfesorClase] = useState('');
+const [institucionClase, setInstitucionClase] = useState('');
+const [estudiantes, setEstudiantes] = useState([]);
+const [nombreEstudiante, setNombreEstudiante] = useState('');
+const [expandido, setExpandido] = useState({});
+const [fechaActual, setFechaActual] = useState(new Date().toISOString().split('T')[0]);
+const [tituloEvaluacion, setTituloEvaluacion] = useState(''); const [nombreProfesor, setNombreProfesor] = useState('');
   const [institucion, setInstitucion] = useState('');
   const [gradoPlan, setGradoPlan] = useState('');
   const [materia, setMateria] = useState('');
@@ -4184,7 +4189,7 @@ const {
   view={view}
   setView={setView}
   tienePremium={tienePremium}
-  onUpgrade={() => setMostrarSuscripcion(true)}
+  onUpgrade={abrirModalSuscripcion}
   trackEvent={trackEvent}
 />
 
