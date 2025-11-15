@@ -10,7 +10,9 @@ const NavegacionPremium = ({
   tienePremium, 
   onUpgrade, 
   trackEvent 
-}) => {
+}) => {    
+  console.log("🔍 NavegacionPremium - props:", { tienePremium, onUpgrade: typeof onUpgrade });
+  
   const vistas = [
     { id: 'home', icon: Home, label: 'Inicio', siempreDisponible: true },
     { id: 'clase', icon: Users, label: 'Estudiantes', siempreDisponible: true },
@@ -25,7 +27,8 @@ const NavegacionPremium = ({
   const manejarClickVista = (vista) => {
     if (vista.premium && !tienePremium) {
       trackEvent('intento_acceso_premium', { vista: vista.id });
-      onUpgrade();
+      onUpgrade();       
+      console.log("🎯 onUpgrade EJECUTADO - debería abrir modal");
       return;
     }
     setView(vista.id);
